@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+@layer base {
+  html,
+  body {
+    @apply bg-amber-50 text-gray-900 antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Warm, dog-friendly color palette */
+  :root {
+    --paw-primary: #d97706;
+    --paw-secondary: #f59e0b;
+    --paw-accent: #fbbf24;
+    --paw-bg: #fffbeb;
+    --paw-card: #ffffff;
+    --paw-success: #16a34a;
+    --paw-danger: #dc2626;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-base 
+           focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30;
+  }
+
+  label {
+    @apply mb-1.5 block text-sm font-semibold text-gray-700;
+  }
+}
+
+/* Mobile-first container */
+@layer components {
+  .page-container {
+    @apply mx-auto w-full max-w-lg px-4 pb-24 pt-4;
+  }
+
+  .card {
+    @apply rounded-2xl border border-amber-100 bg-white p-4 shadow-sm;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-xl bg-amber-500 px-6 py-3 
+           font-semibold text-white shadow-sm transition-all 
+           hover:bg-amber-600 active:scale-[0.98] active:bg-amber-700
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-xl border-2 border-amber-300 
+           bg-white px-6 py-3 font-semibold text-amber-700 transition-all
+           hover:bg-amber-50 active:scale-[0.98];
+  }
+
+  .btn-sm {
+    @apply rounded-lg px-3 py-1.5 text-sm;
+  }
+
+  .chip {
+    @apply inline-block rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800;
+  }
+
+  .section-title {
+    @apply mb-4 text-lg font-bold text-gray-800;
+  }
+
+  .input-row {
+    @apply mb-4;
+  }
+}
+
+/* Bottom nav bar */
+.bottom-nav {
+  @apply fixed bottom-0 left-0 right-0 z-50 border-t border-amber-200 bg-white/95 
+         backdrop-blur-sm;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #fbbf24;
+  border-radius: 2px;
+}
