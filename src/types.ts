@@ -45,3 +45,25 @@ export interface GpsPosition {
 }
 
 export type AppRole = "owner" | "sitter";
+
+export interface Dog {
+  id: string;
+  ownerId: string;
+  name: string;
+  breed: string;
+  age: number;
+  weight: number;
+  photoUrl: string;
+  bio: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface EmailNotification {
+  id: string;
+  userId: string;
+  type: string;
+  subject: string;
+  body: string;
+  sentAt: string;
+}

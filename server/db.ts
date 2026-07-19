@@ -5,7 +5,7 @@ import type { Sitter } from "../src/types";
 // Production: @libsql/client → Turso (serverless-compatible, HTTP-based)
 const TURSO_URL = process.env.TURSO_DATABASE_URL;
 const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN;
-const useTurso = !!(TURSO_URL && TURSO_TOKEN);
+const useTurso = !!(TURSO_URL && TURSO_TOKEN && TURSO_URL.startsWith("libsql://"));
 
 // ── Mock sitter data (must be defined before any init code runs) ──
 
@@ -170,6 +170,33 @@ function initSchema() {
       lat REAL NOT NULL,
       lng REAL NOT NULL,
       timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  _exec!(`
+    CREATE TABLE IF NOT EXISTS email_notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      type TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      recipient_email TEXT NOT NULL DEFAULT '',
+      sent_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  _exec!(`
+    CREATE TABLE IF NOT EXISTS dogs (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL REFERENCES users(id),
+      name TEXT NOT NULL,
+      breed TEXT NOT NULL DEFAULT '',
+      age INTEGER NOT NULL DEFAULT 0,
+      weight REAL NOT NULL DEFAULT 0,
+      photo_url TEXT NOT NULL DEFAULT '',
+      bio TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
 }

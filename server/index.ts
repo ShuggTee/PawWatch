@@ -9,6 +9,15 @@ import {
   getUserById,
 } from "./auth";
 import type { UserPayload } from "./auth";
+import {
+  sendEmail,
+  welcomeEmailBody,
+  bookingConfirmationBody,
+  sitterNotifyBody,
+  careLogNotificationBody,
+  buildCareSummary,
+  getNotificationsForUser,
+} from "./email";
 
 const app = new Hono();
 app.use("/*", cors());
@@ -54,6 +63,15 @@ app.post("/auth/signup", async (c) => {
   if ("error" in result) {
     return c.json({ error: result.error }, 409);
   }
+
+  // Send welcome email (fire and forget)
+  sendEmail(
+    email,
+    "🐾 Welcome to PawWatch!",
+    welcomeEmailBody(name),
+    result.user.id,
+    "welcome"
+  ).catch((err) => console.error("Welcome email failed:", err));
 
   return c.json({ user: result.user, token: result.token });
 });
@@ -214,31 +232,56 @@ app.post("/bookings", authMiddleware, async (c) => {
   );
 
   const row = query(
-    `SELECT b.*, sp.id as sitter_profile_id, sp.emoji as sitter_emoji, u2.name as sitter_name
+    `SELECT b.*, sp.id as sitter_profile_id, sp.emoji as sitter_emoji, u2.name as sitter_name, u2.email as sitter_email
      FROM bookings b
      JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
      JOIN users u2 ON u2.id = b.sitter_id
      WHERE b.id = ?`,
   ).get(bookingId) as any;
 
-  return c.json({
-    booking: {
-      id: row.id,
-      sitterId: row.sitter_profile_id,
-      sitterName: row.sitter_name,
-      sitterEmoji: row.sitter_emoji,
-      ownerId: row.owner_id,
-      ownerName: row.owner_name,
-      dogName: row.dog_name,
-      dogBreed: row.dog_breed,
-      address: row.address,
-      date: row.date,
-      startTime: row.start_time,
-      endTime: row.end_time,
-      status: row.status,
-      createdAt: row.created_at,
-    },
-  });
+  const booking = {
+    id: row.id,
+    sitterId: row.sitter_profile_id,
+    sitterName: row.sitter_name,
+    sitterEmoji: row.sitter_emoji,
+    ownerId: row.owner_id,
+    ownerName: row.owner_name,
+    dogName: row.dog_name,
+    dogBreed: row.dog_breed,
+    address: row.address,
+    date: row.date,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+
+  // Send confirmation email to owner (fire and forget)
+  sendEmail(
+    user.email,
+    "✅ Booking Confirmed — PawWatch",
+    bookingConfirmationBody(
+      user.name, row.sitter_name, dogName, date, startTime, endTime, address
+    ),
+    user.userId,
+    "booking_confirmation_owner"
+  ).catch((err) => console.error("Owner booking email failed:", err));
+
+  // Notify sitter if they have a real email (not mock)
+  const sitterEmail = row.sitter_email as string;
+  if (sitterEmail && !sitterEmail.includes("pawwatch.internal")) {
+    sendEmail(
+      sitterEmail,
+      "📋 New Booking Request — PawWatch",
+      sitterNotifyBody(
+        row.sitter_name, user.name, dogName, date, startTime, endTime
+      ),
+      row.sitter_id,
+      "booking_confirmation_sitter"
+    ).catch((err) => console.error("Sitter booking email failed:", err));
+  }
+
+  return c.json({ booking });
 });
 
 app.patch("/bookings/:id/status", authMiddleware, async (c) => {
@@ -326,6 +369,19 @@ app.post("/bookings/:id/care-logs", authMiddleware, async (c) => {
     body.playtimeMinutes || 0,
     body.playtimeNotes || "",
   );
+
+  // Send notification to the owner (fire and forget)
+  const ownerRow = query("SELECT id, email, name FROM users WHERE id = ?").get(booking.owner_id) as any;
+  if (ownerRow) {
+    const summary = buildCareSummary(body);
+    sendEmail(
+      ownerRow.email || "",
+      `🐕 Care Update: ${booking.dog_name} — PawWatch`,
+      careLogNotificationBody(ownerRow.name, user.name, booking.dog_name, summary),
+      booking.owner_id,
+      "care_log"
+    ).catch((err) => console.error("Care log email failed:", err));
+  }
 
   return c.json({
     log: {
@@ -497,6 +553,136 @@ app.put("/sitters/me/verify", authMiddleware, (c) => {
     user.userId,
   );
   return c.json({ success: true, isVerified: true });
+});
+
+// ── Notifications ──
+app.get("/notifications", authMiddleware, (c) => {
+  const user = getUser(c);
+  const notifications = getNotificationsForUser(user.userId);
+  return c.json({ notifications });
+});
+
+// ── Dogs ──
+app.get("/dogs", authMiddleware, (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can manage dogs" }, 403);
+  }
+
+  const rows = query(
+    "SELECT * FROM dogs WHERE owner_id = ? ORDER BY created_at DESC"
+  ).all(user.userId) as any[];
+
+  const dogs = rows.map((r) => ({
+    id: r.id,
+    ownerId: r.owner_id,
+    name: r.name,
+    breed: r.breed,
+    age: r.age,
+    weight: r.weight,
+    photoUrl: r.photo_url,
+    bio: r.bio,
+    notes: r.notes,
+    createdAt: r.created_at,
+  }));
+
+  return c.json({ dogs });
+});
+
+app.post("/dogs", authMiddleware, async (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can create dogs" }, 403);
+  }
+
+  const body = await c.req.json();
+  const { name, breed, age, weight, photoUrl, bio, notes } = body;
+
+  if (!name || !name.trim()) {
+    return c.json({ error: "Dog name is required" }, 400);
+  }
+
+  const id = generateId();
+  run(
+    `INSERT INTO dogs (id, owner_id, name, breed, age, weight, photo_url, bio, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, user.userId, name.trim(), breed || "", age || 0, weight || 0, photoUrl || "", bio || "", notes || ""
+  );
+
+  const row = query("SELECT * FROM dogs WHERE id = ?").get(id) as any;
+
+  return c.json({
+    dog: {
+      id: row.id,
+      ownerId: row.owner_id,
+      name: row.name,
+      breed: row.breed,
+      age: row.age,
+      weight: row.weight,
+      photoUrl: row.photo_url,
+      bio: row.bio,
+      notes: row.notes,
+      createdAt: row.created_at,
+    },
+  });
+});
+
+app.put("/dogs/:id", authMiddleware, async (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can update dogs" }, 403);
+  }
+
+  const dogId = c.req.param("id");
+  const existing = query("SELECT * FROM dogs WHERE id = ? AND owner_id = ?").get(dogId, user.userId) as any;
+  if (!existing) {
+    return c.json({ error: "Dog not found" }, 404);
+  }
+
+  const body = await c.req.json();
+  const { name, breed, age, weight, photoUrl, bio, notes } = body;
+
+  if (!name || !name.trim()) {
+    return c.json({ error: "Dog name is required" }, 400);
+  }
+
+  run(
+    `UPDATE dogs SET name = ?, breed = ?, age = ?, weight = ?, photo_url = ?, bio = ?, notes = ? WHERE id = ? AND owner_id = ?`,
+    name.trim(), breed || "", age || 0, weight || 0, photoUrl || "", bio || "", notes || "", dogId, user.userId
+  );
+
+  const row = query("SELECT * FROM dogs WHERE id = ?").get(dogId) as any;
+
+  return c.json({
+    dog: {
+      id: row.id,
+      ownerId: row.owner_id,
+      name: row.name,
+      breed: row.breed,
+      age: row.age,
+      weight: row.weight,
+      photoUrl: row.photo_url,
+      bio: row.bio,
+      notes: row.notes,
+      createdAt: row.created_at,
+    },
+  });
+});
+
+app.delete("/dogs/:id", authMiddleware, (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can delete dogs" }, 403);
+  }
+
+  const dogId = c.req.param("id");
+  const existing = query("SELECT * FROM dogs WHERE id = ? AND owner_id = ?").get(dogId, user.userId) as any;
+  if (!existing) {
+    return c.json({ error: "Dog not found" }, 404);
+  }
+
+  run("DELETE FROM dogs WHERE id = ? AND owner_id = ?", dogId, user.userId);
+  return c.json({ success: true });
 });
 
 export default app;

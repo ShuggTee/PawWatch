@@ -1,4 +1,4 @@
-import type { Booking, CareLog, GpsPosition, Sitter } from "../types";
+import type { Booking, CareLog, GpsPosition, Sitter, EmailNotification, Dog } from "../types";
 
 const API_BASE = "/api";
 
@@ -252,4 +252,57 @@ export async function verifySitter(): Promise<{
     },
   );
   return data;
+}
+
+// ── Notifications ──
+export async function getNotifications(): Promise<EmailNotification[]> {
+  const data = await apiFetch<{ notifications: EmailNotification[] }>(
+    "/notifications"
+  );
+  return data.notifications;
+}
+
+// ── Dogs ──
+export async function getDogs(): Promise<Dog[]> {
+  const data = await apiFetch<{ dogs: Dog[] }>("/dogs");
+  return data.dogs;
+}
+
+export async function createDog(dogData: {
+  name: string;
+  breed?: string;
+  age?: number;
+  weight?: number;
+  photoUrl?: string;
+  bio?: string;
+  notes?: string;
+}): Promise<Dog> {
+  const data = await apiFetch<{ dog: Dog }>("/dogs", {
+    method: "POST",
+    body: JSON.stringify(dogData),
+  });
+  return data.dog;
+}
+
+export async function updateDog(
+  id: string,
+  dogData: {
+    name: string;
+    breed?: string;
+    age?: number;
+    weight?: number;
+    photoUrl?: string;
+    bio?: string;
+    notes?: string;
+  }
+): Promise<Dog> {
+  const data = await apiFetch<{ dog: Dog }>(`/dogs/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(dogData),
+  });
+  return data.dog;
+}
+
+export async function deleteDog(id: string): Promise<void> {
+  await apiFetch(`/dogs/${id}`, { method: "DELETE" });
 }

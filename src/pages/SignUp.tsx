@@ -1,15 +1,17 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../components/AuthContext";
 
 export default function SignUp() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signup } = useAuth();
+  const preselectedRole = (searchParams.get("role") === "sitter" ? "sitter" : "owner") as "owner" | "sitter";
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
-    role: "owner" as "owner" | "sitter",
+    role: preselectedRole,
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
