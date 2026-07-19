@@ -8,7 +8,7 @@ function getToken(): string | null {
 
 async function apiFetch<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -51,7 +51,7 @@ export async function signup(
   email: string,
   password: string,
   name: string,
-  role: "owner" | "sitter"
+  role: "owner" | "sitter",
 ): Promise<AuthResult> {
   const data = await apiFetch<AuthResult>("/auth/signup", {
     method: "POST",
@@ -64,7 +64,7 @@ export async function signup(
 
 export async function login(
   email: string,
-  password: string
+  password: string,
 ): Promise<AuthResult> {
   const data = await apiFetch<AuthResult>("/auth/login", {
     method: "POST",
@@ -123,11 +123,11 @@ export async function getBookings(): Promise<BookingWithSitter[]> {
 }
 
 export async function getBooking(
-  id: string
+  id: string,
 ): Promise<BookingWithSitter | undefined> {
   try {
     const data = await apiFetch<{ booking: BookingWithSitter }>(
-      `/bookings/${id}`
+      `/bookings/${id}`,
     );
     return data.booking;
   } catch {
@@ -153,7 +153,7 @@ export async function createBooking(bookingData: {
 
 export async function updateBookingStatus(
   id: string,
-  status: Booking["status"]
+  status: Booking["status"],
 ): Promise<void> {
   await apiFetch(`/bookings/${id}/status`, {
     method: "PATCH",
@@ -164,7 +164,7 @@ export async function updateBookingStatus(
 // ── Care Logs ──
 export async function getCareLogs(bookingId: string): Promise<CareLog[]> {
   const data = await apiFetch<{ logs: CareLog[] }>(
-    `/bookings/${bookingId}/care-logs`
+    `/bookings/${bookingId}/care-logs`,
   );
   return data.logs;
 }
@@ -179,24 +179,24 @@ export async function addCareLog(
     treatNotes: string;
     playtimeMinutes: number;
     playtimeNotes: string;
-  }
+  },
 ): Promise<CareLog> {
   const data = await apiFetch<{ log: CareLog }>(
     `/bookings/${bookingId}/care-logs`,
     {
       method: "POST",
       body: JSON.stringify(logData),
-    }
+    },
   );
   return data.log;
 }
 
 // ── GPS ──
 export async function getLatestGps(
-  bookingId: string
+  bookingId: string,
 ): Promise<GpsPosition | null> {
   const data = await apiFetch<{ position: GpsPosition | null }>(
-    `/bookings/${bookingId}/gps`
+    `/bookings/${bookingId}/gps`,
   );
   return data.position;
 }
@@ -204,7 +204,7 @@ export async function getLatestGps(
 export async function saveGpsPosition(
   bookingId: string,
   lat: number,
-  lng: number
+  lng: number,
 ): Promise<void> {
   await apiFetch(`/bookings/${bookingId}/gps`, {
     method: "POST",
@@ -214,14 +214,14 @@ export async function saveGpsPosition(
 
 // ── Stripe Payment & Premium/Verification ──
 export async function submitPayment(
-  type: "premium" | "verification"
+  type: "premium" | "verification",
 ): Promise<{ success: boolean; message: string }> {
   const data = await apiFetch<{ success: boolean; message: string }>(
     "/stripe/payment-webhook",
     {
       method: "POST",
       body: JSON.stringify({ type }),
-    }
+    },
   );
   return data;
 }
@@ -249,7 +249,7 @@ export async function verifySitter(): Promise<{
     "/sitters/me/verify",
     {
       method: "PUT",
-    }
+    },
   );
   return data;
 }

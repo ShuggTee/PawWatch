@@ -26,7 +26,10 @@ export default function BookingDetail() {
 
   // GPS state for sitter
   const [tracking, setTracking] = useState(false);
-  const [currentPos, setCurrentPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [currentPos, setCurrentPos] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [gpsError, setGpsError] = useState("");
   const [watchId, setWatchId] = useState<number | null>(null);
   const [arrived, setArrived] = useState(false);
@@ -59,7 +62,7 @@ export default function BookingDetail() {
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     },
-    []
+    [],
   );
 
   // Load booking and logs
@@ -76,7 +79,12 @@ export default function BookingDetail() {
         setLogs(l);
         if (pos) {
           setCurrentPos({ lat: pos.lat, lng: pos.lng });
-          const dist = calcDistance(pos.lat, pos.lng, OWNER_HOME.lat, OWNER_HOME.lng);
+          const dist = calcDistance(
+            pos.lat,
+            pos.lng,
+            OWNER_HOME.lat,
+            OWNER_HOME.lng,
+          );
           setDistance(Math.round(dist));
           setArrived(dist <= ARRIVAL_RADIUS_METERS);
         }
@@ -111,13 +119,14 @@ export default function BookingDetail() {
         setDistance(Math.round(dist));
         if (dist <= ARRIVAL_RADIUS_METERS && !arrived) {
           setArrived(true);
-          if (bookingId) updateBookingStatus(bookingId, "in-progress").catch(() => {});
+          if (bookingId)
+            updateBookingStatus(bookingId, "in-progress").catch(() => {});
         }
       },
       (err) => {
         setGpsError(`GPS error: ${err.message}`);
       },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 },
     );
 
     setWatchId(id);
@@ -164,7 +173,9 @@ export default function BookingDetail() {
         <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-4xl">
           🔒
         </div>
-        <h2 className="mb-2 text-xl font-bold text-gray-800">Sign in required</h2>
+        <h2 className="mb-2 text-xl font-bold text-gray-800">
+          Sign in required
+        </h2>
         <p className="mb-6 text-gray-500">Sign in to view booking details.</p>
         <button onClick={() => navigate("/signin")} className="btn-primary">
           Sign In
@@ -188,7 +199,10 @@ export default function BookingDetail() {
     return (
       <div className="page-container text-center">
         <p className="text-gray-500">Booking not found.</p>
-        <button onClick={() => navigate("/bookings")} className="btn-secondary mt-4">
+        <button
+          onClick={() => navigate("/bookings")}
+          className="btn-secondary mt-4"
+        >
           Back to bookings
         </button>
       </div>
@@ -264,7 +278,10 @@ export default function BookingDetail() {
             <p className="text-sm text-gray-600 mb-2">
               ⭐ GPS tracking is a premium feature.
             </p>
-            <button onClick={() => navigate("/")} className="text-sm font-semibold text-amber-600 hover:text-amber-700">
+            <button
+              onClick={() => navigate("/")}
+              className="text-sm font-semibold text-amber-600 hover:text-amber-700"
+            >
               Upgrade to Premium →
             </button>
           </div>
@@ -314,11 +331,17 @@ export default function BookingDetail() {
             {isSitter && (
               <div className="flex gap-2">
                 {!tracking ? (
-                  <button onClick={startTracking} className="btn-primary flex-1">
+                  <button
+                    onClick={startTracking}
+                    className="btn-primary flex-1"
+                  >
                     📍 Start Sharing Location
                   </button>
                 ) : (
-                  <button onClick={stopTracking} className="btn-secondary flex-1">
+                  <button
+                    onClick={stopTracking}
+                    className="btn-secondary flex-1"
+                  >
                     ⏹ Stop Sharing
                   </button>
                 )}
@@ -529,9 +552,13 @@ export default function BookingDetail() {
         {hasPremiumGate && hiddenLogCount > 0 && (
           <div className="mt-3 rounded-xl border border-yellow-200 bg-yellow-50/50 p-3 text-center">
             <p className="text-sm text-gray-600">
-              {hiddenLogCount} older {hiddenLogCount === 1 ? "entry" : "entries"} hidden.
+              {hiddenLogCount} older{" "}
+              {hiddenLogCount === 1 ? "entry" : "entries"} hidden.
             </p>
-            <button onClick={() => navigate("/")} className="text-sm font-semibold text-amber-600 hover:text-amber-700 mt-1 inline-block">
+            <button
+              onClick={() => navigate("/")}
+              className="text-sm font-semibold text-amber-600 hover:text-amber-700 mt-1 inline-block"
+            >
               ⭐ Upgrade to Premium to view full history →
             </button>
           </div>

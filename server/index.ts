@@ -38,7 +38,10 @@ app.post("/auth/signup", async (c) => {
   const { email, password, name, role } = body;
 
   if (!email || !password || !name || !role) {
-    return c.json({ error: "Email, password, name, and role are required." }, 400);
+    return c.json(
+      { error: "Email, password, name, and role are required." },
+      400,
+    );
   }
   if (!["owner", "sitter"].includes(role)) {
     return c.json({ error: "Role must be 'owner' or 'sitter'." }, 400);
@@ -103,7 +106,7 @@ app.get("/bookings", authMiddleware, (c) => {
        JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
        JOIN users u2 ON u2.id = b.sitter_id
        WHERE b.owner_id = ?
-       ORDER BY b.created_at DESC`
+       ORDER BY b.created_at DESC`,
     ).all(user.userId);
   } else {
     rows = query(
@@ -112,7 +115,7 @@ app.get("/bookings", authMiddleware, (c) => {
        JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
        JOIN users u2 ON u2.id = b.sitter_id
        WHERE b.sitter_id = ?
-       ORDER BY b.created_at DESC`
+       ORDER BY b.created_at DESC`,
     ).all(user.userId);
   }
 
@@ -145,7 +148,7 @@ app.get("/bookings/:id", authMiddleware, (c) => {
      FROM bookings b
      JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
      JOIN users u2 ON u2.id = b.sitter_id
-     WHERE b.id = ?`
+     WHERE b.id = ?`,
   ).get(id) as any;
 
   if (!row) return c.json({ error: "Booking not found" }, 404);
@@ -180,13 +183,16 @@ app.post("/bookings", authMiddleware, async (c) => {
   }
 
   const body = await c.req.json();
-  const { sitterId, dogName, dogBreed, address, date, startTime, endTime } = body;
+  const { sitterId, dogName, dogBreed, address, date, startTime, endTime } =
+    body;
 
   if (!sitterId || !dogName || !address || !date || !startTime || !endTime) {
     return c.json({ error: "Missing required fields" }, 400);
   }
 
-  const sitterProfile = query("SELECT user_id FROM sitter_profiles WHERE id = ?").get(sitterId) as any;
+  const sitterProfile = query(
+    "SELECT user_id FROM sitter_profiles WHERE id = ?",
+  ).get(sitterId) as any;
   if (!sitterProfile) {
     return c.json({ error: "Sitter not found" }, 404);
   }
@@ -195,7 +201,16 @@ app.post("/bookings", authMiddleware, async (c) => {
   run(
     `INSERT INTO bookings (id, sitter_id, owner_id, owner_name, dog_name, dog_breed, address, date, start_time, end_time, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')`,
-    bookingId, sitterProfile.user_id, user.userId, user.name, dogName, dogBreed || "", address, date, startTime, endTime
+    bookingId,
+    sitterProfile.user_id,
+    user.userId,
+    user.name,
+    dogName,
+    dogBreed || "",
+    address,
+    date,
+    startTime,
+    endTime,
   );
 
   const row = query(
@@ -203,7 +218,7 @@ app.post("/bookings", authMiddleware, async (c) => {
      FROM bookings b
      JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
      JOIN users u2 ON u2.id = b.sitter_id
-     WHERE b.id = ?`
+     WHERE b.id = ?`,
   ).get(bookingId) as any;
 
   return c.json({
@@ -251,13 +266,17 @@ app.get("/bookings/:id/care-logs", authMiddleware, (c) => {
   const user = getUser(c);
   const bookingId = c.req.param("id");
 
-  const booking = query("SELECT * FROM bookings WHERE id = ?").get(bookingId) as any;
+  const booking = query("SELECT * FROM bookings WHERE id = ?").get(
+    bookingId,
+  ) as any;
   if (!booking) return c.json({ error: "Booking not found" }, 404);
   if (booking.owner_id !== user.userId && booking.sitter_id !== user.userId) {
     return c.json({ error: "Unauthorized" }, 403);
   }
 
-  const rows = query("SELECT * FROM care_logs WHERE booking_id = ? ORDER BY timestamp DESC").all(bookingId);
+  const rows = query(
+    "SELECT * FROM care_logs WHERE booking_id = ? ORDER BY timestamp DESC",
+  ).all(bookingId);
 
   const logs = rows.map((r: any) => ({
     id: r.id,
@@ -283,7 +302,9 @@ app.post("/bookings/:id/care-logs", authMiddleware, async (c) => {
 
   const bookingId = c.req.param("id");
 
-  const booking = query("SELECT * FROM bookings WHERE id = ?").get(bookingId) as any;
+  const booking = query("SELECT * FROM bookings WHERE id = ?").get(
+    bookingId,
+  ) as any;
   if (!booking) return c.json({ error: "Booking not found" }, 404);
   if (booking.sitter_id !== user.userId) {
     return c.json({ error: "Unauthorized" }, 403);
@@ -295,9 +316,15 @@ app.post("/bookings/:id/care-logs", authMiddleware, async (c) => {
   run(
     `INSERT INTO care_logs (id, booking_id, feeding, feeding_notes, water_changed, treats, treat_notes, playtime_minutes, playtime_notes)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    logId, bookingId, body.feeding ? 1 : 0, body.feedingNotes || "",
-    body.waterChanged ? 1 : 0, body.treats ? 1 : 0, body.treatNotes || "",
-    body.playtimeMinutes || 0, body.playtimeNotes || ""
+    logId,
+    bookingId,
+    body.feeding ? 1 : 0,
+    body.feedingNotes || "",
+    body.waterChanged ? 1 : 0,
+    body.treats ? 1 : 0,
+    body.treatNotes || "",
+    body.playtimeMinutes || 0,
+    body.playtimeNotes || "",
   );
 
   return c.json({
@@ -321,14 +348,16 @@ app.get("/bookings/:id/gps", authMiddleware, (c) => {
   const user = getUser(c);
   const bookingId = c.req.param("id");
 
-  const booking = query("SELECT * FROM bookings WHERE id = ?").get(bookingId) as any;
+  const booking = query("SELECT * FROM bookings WHERE id = ?").get(
+    bookingId,
+  ) as any;
   if (!booking) return c.json({ error: "Booking not found" }, 404);
   if (booking.owner_id !== user.userId && booking.sitter_id !== user.userId) {
     return c.json({ error: "Unauthorized" }, 403);
   }
 
   const row = query(
-    "SELECT * FROM gps_positions WHERE booking_id = ? ORDER BY timestamp DESC LIMIT 1"
+    "SELECT * FROM gps_positions WHERE booking_id = ? ORDER BY timestamp DESC LIMIT 1",
   ).get(bookingId) as any;
 
   if (!row) return c.json({ position: null });
@@ -351,7 +380,9 @@ app.post("/bookings/:id/gps", authMiddleware, async (c) => {
 
   const bookingId = c.req.param("id");
 
-  const booking = query("SELECT * FROM bookings WHERE id = ?").get(bookingId) as any;
+  const booking = query("SELECT * FROM bookings WHERE id = ?").get(
+    bookingId,
+  ) as any;
   if (!booking) return c.json({ error: "Booking not found" }, 404);
   if (booking.sitter_id !== user.userId) {
     return c.json({ error: "Unauthorized" }, 403);
@@ -364,13 +395,19 @@ app.post("/bookings/:id/gps", authMiddleware, async (c) => {
     return c.json({ error: "lat and lng are required" }, 400);
   }
 
-  run("INSERT INTO gps_positions (booking_id, lat, lng) VALUES (?, ?, ?)", bookingId, lat, lng);
+  run(
+    "INSERT INTO gps_positions (booking_id, lat, lng) VALUES (?, ?, ?)",
+    bookingId,
+    lat,
+    lng,
+  );
 
   run(
     `DELETE FROM gps_positions WHERE booking_id = ? AND id NOT IN (
        SELECT id FROM gps_positions WHERE booking_id = ? ORDER BY timestamp DESC LIMIT 100
      )`,
-    bookingId, bookingId
+    bookingId,
+    bookingId,
   );
 
   return c.json({ success: true });
@@ -393,15 +430,26 @@ app.post("/stripe/payment-webhook", authMiddleware, async (c) => {
       return c.json({ error: "Only owners can purchase premium." }, 403);
     }
     run("UPDATE users SET pending_premium = 1 WHERE id = ?", user.userId);
-    return c.json({ success: true, message: "Premium payment recorded. Your premium status will activate shortly after verification." });
+    return c.json({
+      success: true,
+      message:
+        "Premium payment recorded. Your premium status will activate shortly after verification.",
+    });
   }
 
   if (type === "verification") {
     if (user.role !== "sitter") {
       return c.json({ error: "Only sitters can get verified." }, 403);
     }
-    run("UPDATE sitter_profiles SET pending_verification = 1 WHERE user_id = ?", user.userId);
-    return c.json({ success: true, message: "Verification payment recorded. Your badge will appear after processing." });
+    run(
+      "UPDATE sitter_profiles SET pending_verification = 1 WHERE user_id = ?",
+      user.userId,
+    );
+    return c.json({
+      success: true,
+      message:
+        "Verification payment recorded. Your badge will appear after processing.",
+    });
   }
 });
 
@@ -409,7 +457,9 @@ app.post("/stripe/payment-webhook", authMiddleware, async (c) => {
 app.put("/users/me/premium", authMiddleware, (c) => {
   const user = getUser(c);
 
-  const row = query("SELECT pending_premium FROM users WHERE id = ?").get(user.userId) as any;
+  const row = query("SELECT pending_premium FROM users WHERE id = ?").get(
+    user.userId,
+  ) as any;
   if (!row?.pending_premium) {
     return c.json({ error: "No pending premium payment found." }, 400);
   }
@@ -419,7 +469,11 @@ app.put("/users/me/premium", authMiddleware, (c) => {
   premiumUntil.setDate(premiumUntil.getDate() + 30);
   const untilStr = premiumUntil.toISOString().split("T")[0];
 
-  run("UPDATE users SET is_premium = 1, premium_until = ?, pending_premium = 0 WHERE id = ?", untilStr, user.userId);
+  run(
+    "UPDATE users SET is_premium = 1, premium_until = ?, pending_premium = 0 WHERE id = ?",
+    untilStr,
+    user.userId,
+  );
   return c.json({ success: true, isPremium: true, premiumUntil: untilStr });
 });
 
@@ -431,12 +485,17 @@ app.put("/sitters/me/verify", authMiddleware, (c) => {
     return c.json({ error: "Only sitters can be verified." }, 403);
   }
 
-  const row = query("SELECT pending_verification FROM sitter_profiles WHERE user_id = ?").get(user.userId) as any;
+  const row = query(
+    "SELECT pending_verification FROM sitter_profiles WHERE user_id = ?",
+  ).get(user.userId) as any;
   if (!row?.pending_verification) {
     return c.json({ error: "No pending verification payment found." }, 400);
   }
 
-  run("UPDATE sitter_profiles SET is_verified = 1, pending_verification = 0 WHERE user_id = ?", user.userId);
+  run(
+    "UPDATE sitter_profiles SET is_verified = 1, pending_verification = 0 WHERE user_id = ?",
+    user.userId,
+  );
   return c.json({ success: true, isVerified: true });
 });
 

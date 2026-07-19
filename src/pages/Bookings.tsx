@@ -26,7 +26,9 @@ export default function Bookings() {
         <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-4xl">
           🔒
         </div>
-        <h2 className="mb-2 text-xl font-bold text-gray-800">Sign in to view bookings</h2>
+        <h2 className="mb-2 text-xl font-bold text-gray-800">
+          Sign in to view bookings
+        </h2>
         <p className="mb-6 text-gray-500">
           Sign in or create an account to manage your bookings.
         </p>
@@ -59,17 +61,16 @@ export default function Bookings() {
         <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-4xl">
           📋
         </div>
-        <h2 className="mb-2 text-xl font-bold text-gray-800">No bookings yet</h2>
+        <h2 className="mb-2 text-xl font-bold text-gray-800">
+          No bookings yet
+        </h2>
         <p className="mb-6 text-gray-500">
           {user.role === "owner"
             ? "Find a sitter to book your first visit."
             : "No jobs assigned yet."}
         </p>
         {user.role === "owner" && (
-          <button
-            onClick={() => navigate("/sitters")}
-            className="btn-primary"
-          >
+          <button onClick={() => navigate("/sitters")} className="btn-primary">
             Find a Sitter
           </button>
         )}

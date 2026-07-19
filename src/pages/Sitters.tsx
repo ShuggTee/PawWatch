@@ -51,7 +51,9 @@ export default function Sitters() {
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-gray-800">{sitter.name}</h3>
                 {sitter.isVerified && (
-                  <span className="text-sm" title="Verified Sitter">✅</span>
+                  <span className="text-sm" title="Verified Sitter">
+                    ✅
+                  </span>
                 )}
                 <span className="flex items-center gap-0.5 text-sm font-medium text-amber-600">
                   ⭐ {sitter.rating}
