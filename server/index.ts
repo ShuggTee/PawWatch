@@ -1180,4 +1180,81 @@ app.get("/activity", authMiddleware, (c) => {
   return c.json({ entries, stats });
 });
 
+// ── Public: Community page data ──
+app.get("/community", (c) => {
+  // Total sitters
+  const sitterCountRow = query("SELECT COUNT(*) as c FROM sitter_profiles").get() as any;
+  const totalSitters = sitterCountRow?.c || 0;
+
+  // Total dogs registered
+  const dogCountRow = query("SELECT COUNT(*) as c FROM dogs").get() as any;
+  const totalDogs = dogCountRow?.c || 0;
+
+  // Total completed bookings
+  const bookingCountRow = query("SELECT COUNT(*) as c FROM bookings WHERE status = 'completed'").get() as any;
+  const totalBookings = bookingCountRow?.c || 0;
+
+  // Total playtime minutes
+  const playtimeRow = query("SELECT COALESCE(SUM(playtime_minutes), 0) as total FROM care_logs").get() as any;
+  const totalPlaytimeMinutes = playtimeRow?.total || 0;
+
+  // Recent completed bookings (success stories, last 6)
+  const storyRows = query(
+    `SELECT b.*, sp.emoji as sitter_emoji, u2.name as sitter_name
+     FROM bookings b
+     JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
+     JOIN users u2 ON u2.id = b.sitter_id
+     WHERE b.status = 'completed'
+     ORDER BY b.created_at DESC
+     LIMIT 6`
+  ).all() as any[];
+
+  const successStories = storyRows.map((r: any) => ({
+    sitterName: r.sitter_name,
+    sitterEmoji: r.sitter_emoji,
+    ownerName: r.owner_name,
+    dogName: r.dog_name,
+    dogBreed: r.dog_breed,
+    date: r.date,
+  }));
+
+  // Verified sitters spotlight (last 5 verified)
+  const verifiedRows = query(
+    `SELECT sp.id, sp.emoji, sp.rating, sp.review_count, sp.bio, sp.specialties, u.name
+     FROM sitter_profiles sp
+     JOIN users u ON sp.user_id = u.id
+     WHERE sp.is_verified = 1
+     ORDER BY sp.rating DESC
+     LIMIT 5`
+  ).all() as any[];
+
+  const verifiedSitters = verifiedRows.map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    emoji: r.emoji,
+    rating: r.rating,
+    reviewCount: r.review_count,
+    bio: r.bio,
+    specialties: JSON.parse(r.specialties as string),
+  }));
+
+  // Active owners count (owners who have made at least one booking)
+  const ownerCountRow = query(
+    "SELECT COUNT(DISTINCT owner_id) as c FROM bookings"
+  ).get() as any;
+  const activeOwners = ownerCountRow?.c || 0;
+
+  return c.json({
+    stats: {
+      totalSitters,
+      totalDogs,
+      totalBookings,
+      totalPlaytimeMinutes,
+      activeOwners,
+    },
+    successStories,
+    verifiedSitters,
+  });
+});
+
 export default app;

@@ -422,6 +422,44 @@ export async function getVerificationStatus(): Promise<VerificationStatus> {
   return apiFetch<VerificationStatus>("/verify");
 }
 
+// ── Community ──
+export interface CommunitySuccessStory {
+  sitterName: string;
+  sitterEmoji: string;
+  ownerName: string;
+  dogName: string;
+  dogBreed: string;
+  date: string;
+}
+
+export interface CommunityVerifiedSitter {
+  id: string;
+  name: string;
+  emoji: string;
+  rating: number;
+  reviewCount: number;
+  bio: string;
+  specialties: string[];
+}
+
+export interface CommunityStats {
+  totalSitters: number;
+  totalDogs: number;
+  totalBookings: number;
+  totalPlaytimeMinutes: number;
+  activeOwners: number;
+}
+
+export interface CommunityData {
+  stats: CommunityStats;
+  successStories: CommunitySuccessStory[];
+  verifiedSitters: CommunityVerifiedSitter[];
+}
+
+export async function getCommunityData(): Promise<CommunityData> {
+  return apiFetch<CommunityData>("/community");
+}
+
 export async function reviewVerification(
   appId: string,
   review: { status: "approved" | "rejected"; reviewNotes?: string }
