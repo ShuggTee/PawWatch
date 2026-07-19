@@ -109,6 +109,38 @@ app.get("/sitters/:id", (c) => {
   return c.json({ sitter });
 });
 
+// ── Sitter Availability ──
+app.get("/sitters/:id/availability", authMiddleware, (c) => {
+  const sitterId = c.req.param("id");
+  const month = c.req.query("month"); // YYYY-MM
+
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    return c.json({ error: "month query parameter required (YYYY-MM)" }, 400);
+  }
+
+  // Look up the sitter's user_id from their profile id
+  const sitterProfile = query(
+    "SELECT user_id FROM sitter_profiles WHERE id = ?"
+  ).get(sitterId) as any;
+  if (!sitterProfile) {
+    return c.json({ error: "Sitter not found" }, 404);
+  }
+
+  // Get all booked dates for this sitter in the given month
+  const rows = query(
+    `SELECT date FROM bookings
+     WHERE sitter_id = ?
+     AND date LIKE ?
+     AND status IN ('confirmed', 'in-progress')
+     GROUP BY date
+     ORDER BY date`
+  ).all(sitterProfile.user_id, `${month}%`);
+
+  const bookedDates = rows.map((r: any) => r.date);
+
+  return c.json({ bookedDates });
+});
+
 // ── Protected: Bookings ──
 app.get("/bookings", authMiddleware, (c) => {
   const user = getUser(c);

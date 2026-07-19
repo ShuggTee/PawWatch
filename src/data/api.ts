@@ -306,3 +306,14 @@ export async function updateDog(
 export async function deleteDog(id: string): Promise<void> {
   await apiFetch(`/dogs/${id}`, { method: "DELETE" });
 }
+
+// ── Sitter Availability ──
+export async function getSitterAvailability(
+  sitterId: string,
+  month: string
+): Promise<string[]> {
+  const data = await apiFetch<{ bookedDates: string[] }>(
+    `/sitters/${sitterId}/availability?month=${month}`
+  );
+  return data.bookedDates;
+}
