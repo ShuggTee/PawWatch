@@ -156,6 +156,21 @@ function initSchema() {
       sent_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+
+  _exec!(`
+    CREATE TABLE IF NOT EXISTS dogs (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL REFERENCES users(id),
+      name TEXT NOT NULL,
+      breed TEXT NOT NULL DEFAULT '',
+      age INTEGER NOT NULL DEFAULT 0,
+      weight REAL NOT NULL DEFAULT 0,
+      photo_url TEXT NOT NULL DEFAULT '',
+      bio TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
 }
 
 // ── Seed data ──

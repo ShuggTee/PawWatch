@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getSitter, createBooking } from "../data/api";
+import { getSitter, createBooking, getDogs } from "../data/api";
 import { useAuth } from "../components/AuthContext";
-import type { Sitter } from "../types";
+import type { Sitter, Dog } from "../types";
 
 export default function Book() {
   const { sitterId } = useParams<{ sitterId: string }>();
@@ -10,6 +10,8 @@ export default function Book() {
   const { user } = useAuth();
   const [sitter, setSitter] = useState<Sitter | null>(null);
   const [loadingSitter, setLoadingSitter] = useState(true);
+  const [savedDogs, setSavedDogs] = useState<Dog[]>([]);
+  const [selectedDogId, setSelectedDogId] = useState<string>("");
 
   const [form, setForm] = useState({
     dogName: "",
@@ -31,6 +33,42 @@ export default function Book() {
         .finally(() => setLoadingSitter(false));
     }
   }, [sitterId]);
+
+  // Fetch saved dogs for the dropdown
+  useEffect(() => {
+    if (user && user.role === "owner") {
+      getDogs()
+        .then(setSavedDogs)
+        .catch(() => setSavedDogs([]));
+    }
+  }, [user]);
+
+  // When a saved dog is selected, pre-fill the form
+  const handleDogSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const dogId = e.target.value;
+    setSelectedDogId(dogId);
+
+    if (dogId === "new") {
+      // User wants to add a new dog — redirect to dogs page
+      navigate("/dogs");
+      return;
+    }
+
+    if (!dogId) {
+      // "Select a dog" placeholder — clear dog fields
+      setForm((prev) => ({ ...prev, dogName: "", dogBreed: "" }));
+      return;
+    }
+
+    const dog = savedDogs.find((d) => d.id === dogId);
+    if (dog) {
+      setForm((prev) => ({
+        ...prev,
+        dogName: dog.name,
+        dogBreed: dog.breed,
+      }));
+    }
+  };
 
   if (!user) {
     return (
@@ -103,6 +141,10 @@ export default function Book() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    // If user manually edits dog fields, clear the dropdown selection
+    if (e.target.name === "dogName" || e.target.name === "dogBreed") {
+      setSelectedDogId("");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -200,6 +242,57 @@ export default function Book() {
             className="bg-gray-50 text-gray-600"
           />
         </div>
+
+        {/* Saved dogs dropdown */}
+        {savedDogs.length > 0 && (
+          <div className="input-row">
+            <label htmlFor="savedDog">Select a Dog</label>
+            <select
+              id="savedDog"
+              value={selectedDogId}
+              onChange={handleDogSelect}
+              className="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-base focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20fill%3D%22%23d97706%22%20d%3D%22M4.4%205.6L8%209.2l3.6-3.6%201.4%201.4-5%205-5-5z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.2rem] bg-[right_0.75rem_center] bg-no-repeat pr-10"
+            >
+              <option value="">— Select a dog —</option>
+              {savedDogs.map((dog) => (
+                <option key={dog.id} value={dog.id}>
+                  {dog.name} {dog.breed ? `(${dog.breed})` : ""}
+                </option>
+              ))}
+              <option value="new">+ Add New Dog</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-400">
+              Pick a saved profile or{" "}
+              <button
+                type="button"
+                onClick={() => navigate("/dogs")}
+                className="text-amber-600 underline hover:text-amber-700"
+              >
+                manage your dogs
+              </button>.
+            </p>
+          </div>
+        )}
+
+        {/* Or add first dog */}
+        {savedDogs.length === 0 && (
+          <div className="card mb-4 border-2 border-dashed border-amber-300 bg-amber-50/50">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xl">🐕</span>
+              <h4 className="font-semibold text-gray-700 text-sm">Save time with dog profiles</h4>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Save your dog's details once and reuse them for every booking.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/dogs")}
+              className="btn-primary btn-sm w-full"
+            >
+              Add a Dog Profile
+            </button>
+          </div>
+        )}
 
         <div className="input-row">
           <label htmlFor="dogName">Dog&apos;s Name</label>

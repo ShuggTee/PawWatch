@@ -503,4 +503,127 @@ app.get("/notifications", authMiddleware, (c) => {
   return c.json({ notifications });
 });
 
+// ── Dogs ──
+app.get("/dogs", authMiddleware, (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can manage dogs" }, 403);
+  }
+
+  const rows = query(
+    "SELECT * FROM dogs WHERE owner_id = ? ORDER BY created_at DESC"
+  ).all(user.userId) as any[];
+
+  const dogs = rows.map((r) => ({
+    id: r.id,
+    ownerId: r.owner_id,
+    name: r.name,
+    breed: r.breed,
+    age: r.age,
+    weight: r.weight,
+    photoUrl: r.photo_url,
+    bio: r.bio,
+    notes: r.notes,
+    createdAt: r.created_at,
+  }));
+
+  return c.json({ dogs });
+});
+
+app.post("/dogs", authMiddleware, async (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can create dogs" }, 403);
+  }
+
+  const body = await c.req.json();
+  const { name, breed, age, weight, photoUrl, bio, notes } = body;
+
+  if (!name || !name.trim()) {
+    return c.json({ error: "Dog name is required" }, 400);
+  }
+
+  const id = generateId();
+  run(
+    `INSERT INTO dogs (id, owner_id, name, breed, age, weight, photo_url, bio, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, user.userId, name.trim(), breed || "", age || 0, weight || 0, photoUrl || "", bio || "", notes || ""
+  );
+
+  const row = query("SELECT * FROM dogs WHERE id = ?").get(id) as any;
+
+  return c.json({
+    dog: {
+      id: row.id,
+      ownerId: row.owner_id,
+      name: row.name,
+      breed: row.breed,
+      age: row.age,
+      weight: row.weight,
+      photoUrl: row.photo_url,
+      bio: row.bio,
+      notes: row.notes,
+      createdAt: row.created_at,
+    },
+  });
+});
+
+app.put("/dogs/:id", authMiddleware, async (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can update dogs" }, 403);
+  }
+
+  const dogId = c.req.param("id");
+  const existing = query("SELECT * FROM dogs WHERE id = ? AND owner_id = ?").get(dogId, user.userId) as any;
+  if (!existing) {
+    return c.json({ error: "Dog not found" }, 404);
+  }
+
+  const body = await c.req.json();
+  const { name, breed, age, weight, photoUrl, bio, notes } = body;
+
+  if (!name || !name.trim()) {
+    return c.json({ error: "Dog name is required" }, 400);
+  }
+
+  run(
+    `UPDATE dogs SET name = ?, breed = ?, age = ?, weight = ?, photo_url = ?, bio = ?, notes = ? WHERE id = ? AND owner_id = ?`,
+    name.trim(), breed || "", age || 0, weight || 0, photoUrl || "", bio || "", notes || "", dogId, user.userId
+  );
+
+  const row = query("SELECT * FROM dogs WHERE id = ?").get(dogId) as any;
+
+  return c.json({
+    dog: {
+      id: row.id,
+      ownerId: row.owner_id,
+      name: row.name,
+      breed: row.breed,
+      age: row.age,
+      weight: row.weight,
+      photoUrl: row.photo_url,
+      bio: row.bio,
+      notes: row.notes,
+      createdAt: row.created_at,
+    },
+  });
+});
+
+app.delete("/dogs/:id", authMiddleware, (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can delete dogs" }, 403);
+  }
+
+  const dogId = c.req.param("id");
+  const existing = query("SELECT * FROM dogs WHERE id = ? AND owner_id = ?").get(dogId, user.userId) as any;
+  if (!existing) {
+    return c.json({ error: "Dog not found" }, 404);
+  }
+
+  run("DELETE FROM dogs WHERE id = ? AND owner_id = ?", dogId, user.userId);
+  return c.json({ success: true });
+});
+
 export default app;
