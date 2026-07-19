@@ -14,6 +14,7 @@ import Verify from "./pages/Verify";
 import Dogs from "./pages/Dogs";
 import Track from "./pages/Track";
 import ActivityLog from "./pages/ActivityLog";
+import Community from "./pages/Community";
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/signup" element={<SignUp />} />
           <Route path="/become-a-sitter" element={<BecomeSitter />} />
           <Route path="/verify" element={<Verify />} />
+          <Route path="/community" element={<Community />} />
         </Routes>
       </Layout>
     </AuthProvider>
