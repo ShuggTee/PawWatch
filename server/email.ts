@@ -5,8 +5,8 @@ import { join } from "node:path";
 
 const LOG_DIR = join(import.meta.dir, "..");
 const LOG_FILE = join(LOG_DIR, "emails.log");
-const FROM_ADDRESS = "pawwatch-b14b09f4@ctomail.io";
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const KNOCK_API_KEY = process.env.KNOCK_API_KEY;
+const KNOCK_API_BASE = "https://api.knock.app/v1";
 
 // Ensure log directory exists
 if (!existsSync(LOG_DIR)) {
@@ -23,8 +23,15 @@ export interface EmailRecord {
 }
 
 /**
- * Send an email. In production would use Resend/SMTP; for MVP,
- * logs to file + console and stores in the notification table.
+ * Map an internal email type to a Knock workflow key.
+ * The owner should create matching workflows in the Knock dashboard.
+ */
+function typeToWorkflowKey(type: string): string {
+  return `pawwatch-${type}`;
+}
+
+/**
+ * Send an email via Knock API, with log-to-file + DB fallback.
  */
 export async function sendEmail(
   to: string,
@@ -58,35 +65,34 @@ export async function sendEmail(
     console.error("Failed to store email notification:", err);
   }
 
-  // Try Resend API if key is available
-  if (RESEND_API_KEY) {
+  // Try Knock API if key is available
+  if (KNOCK_API_KEY) {
     try {
-      const response = await fetch("https://api.resend.com/emails", {
+      const workflowKey = typeToWorkflowKey(type);
+      const response = await fetch(`${KNOCK_API_BASE}/workflows/${workflowKey}/trigger`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${RESEND_API_KEY}`,
+          "Authorization": `Bearer ${KNOCK_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: `PawWatch <${FROM_ADDRESS}>`,
-          to: [to],
-          subject,
-          html: body,
+          recipients: [{ email: to }],
+          data: { subject, body, type },
         }),
       });
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error(`Resend API error: ${response.status} ${errText}`);
-        return false;
+        console.error(`Knock API error: ${response.status} ${errText}`);
+        // Fall through — logged email is still usable
+      } else {
+        const data = await response.json();
+        console.log(`📨 Knock workflow triggered, run ID: ${(data as any).workflow_run_id || "unknown"}`);
+        return true;
       }
-
-      const data = await response.json();
-      console.log(`📨 Resend email sent, ID: ${(data as any).id}`);
-      return true;
     } catch (err) {
-      console.error("Resend API call failed:", err);
-      // Don't fail — logged email is still usable for MVP
+      console.error("Knock API call failed:", err);
+      // Fall through — logged email is still usable for MVP
     }
   }
 
