@@ -2,7 +2,15 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getSitter, createBooking, getDogs } from "../data/api";
 import { useAuth } from "../components/AuthContext";
+import Calendar from "../components/Calendar";
 import type { Sitter, Dog } from "../types";
+
+const TIME_SLOTS = [
+  { label: "Morning", sub: "8 AM – 12 PM", start: "08:00", end: "12:00" },
+  { label: "Afternoon", sub: "12 PM – 4 PM", start: "12:00", end: "16:00" },
+  { label: "Evening", sub: "4 PM – 8 PM", start: "16:00", end: "20:00" },
+  { label: "Custom", sub: "Choose your own times", start: "", end: "" },
+];
 
 export default function Book() {
   const { sitterId } = useParams<{ sitterId: string }>();
@@ -21,6 +29,7 @@ export default function Book() {
     startTime: "",
     endTime: "",
   });
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -137,6 +146,18 @@ export default function Book() {
     );
   }
 
+  const handleSlotSelect = (idx: number) => {
+    setSelectedSlot(idx);
+    const slot = TIME_SLOTS[idx];
+    if (slot.start && slot.end) {
+      // Pre-filled slot
+      setForm((prev) => ({ ...prev, startTime: slot.start, endTime: slot.end }));
+    } else {
+      // Custom — clear times for manual entry
+      setForm((prev) => ({ ...prev, startTime: "", endTime: "" }));
+    }
+  };
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -144,6 +165,10 @@ export default function Book() {
     // If user manually edits dog fields, clear the dropdown selection
     if (e.target.name === "dogName" || e.target.name === "dogBreed") {
       setSelectedDogId("");
+    }
+    // If user manually edits time, switch to custom slot
+    if (e.target.name === "startTime" || e.target.name === "endTime") {
+      setSelectedSlot(3); // "Custom" is index 3
     }
   };
 
@@ -333,42 +358,78 @@ export default function Book() {
         </div>
 
         <div className="input-row">
-          <label htmlFor="date">Date</label>
-          <input
-            id="date"
-            name="date"
-            type="date"
-            required
-            value={form.date}
-            onChange={handleChange}
-            min={new Date().toISOString().split("T")[0]}
+          <label>Select Date</label>
+          <Calendar
+            sitterId={sitter.id}
+            selectedDate={form.date || null}
+            onSelectDate={(date) => setForm((prev) => ({ ...prev, date }))}
           />
+          {form.date && (
+            <p className="mt-2 text-center text-sm text-gray-500">
+              📅 {new Date(form.date + "T12:00:00").toLocaleDateString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </p>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        {form.date && (
           <div className="input-row">
-            <label htmlFor="startTime">Start Time</label>
-            <input
-              id="startTime"
-              name="startTime"
-              type="time"
-              required
-              value={form.startTime}
-              onChange={handleChange}
-            />
+            <label>Time Slot</label>
+            <div className="grid grid-cols-2 gap-2">
+              {TIME_SLOTS.map((slot, idx) => (
+                <button
+                  key={slot.label}
+                  type="button"
+                  onClick={() => handleSlotSelect(idx)}
+                  className={`
+                    rounded-xl border-2 px-3 py-3 text-left transition-all active:scale-[0.97]
+                    ${selectedSlot === idx
+                      ? "border-amber-500 bg-amber-50 shadow-sm"
+                      : "border-amber-200 bg-white hover:border-amber-300 hover:bg-amber-50/50"
+                    }
+                  `}
+                >
+                  <div className="text-sm font-semibold text-gray-800">
+                    {slot.label}
+                  </div>
+                  <div className="text-xs text-gray-500">{slot.sub}</div>
+                </button>
+              ))}
+            </div>
+
+            {/* Custom time inputs */}
+            {selectedSlot === 3 && (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="startTime" className="text-xs">Start Time</label>
+                  <input
+                    id="startTime"
+                    name="startTime"
+                    type="time"
+                    required
+                    value={form.startTime}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="endTime" className="text-xs">End Time</label>
+                  <input
+                    id="endTime"
+                    name="endTime"
+                    type="time"
+                    required
+                    value={form.endTime}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+            )}
           </div>
-          <div className="input-row">
-            <label htmlFor="endTime">End Time</label>
-            <input
-              id="endTime"
-              name="endTime"
-              type="time"
-              required
-              value={form.endTime}
-              onChange={handleChange}
-            />
-          </div>
-        </div>
+        )}
 
         <button type="submit" disabled={submitting} className="btn-primary mt-2 w-full">
           {submitting ? "Booking..." : `Confirm Booking — $${sitter.pricePerHour}/hr`}
