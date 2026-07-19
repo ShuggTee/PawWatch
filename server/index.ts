@@ -17,6 +17,7 @@ import {
   careLogNotificationBody,
   buildCareSummary,
   getNotificationsForUser,
+  videoNotificationBody,
 } from "./email";
 
 const app = new Hono();
@@ -706,6 +707,103 @@ app.delete("/dogs/:id", authMiddleware, (c) => {
 
   run("DELETE FROM dogs WHERE id = ? AND owner_id = ?", dogId, user.userId);
   return c.json({ success: true });
+});
+
+// ── Protected: Videos ──
+
+// Upload a video for a booking (sitter only)
+app.post("/bookings/:id/videos", authMiddleware, async (c) => {
+  const user = getUser(c);
+  if (user.role !== "sitter") {
+    return c.json({ error: "Only sitters can upload videos" }, 403);
+  }
+
+  const bookingId = c.req.param("id");
+
+  const booking = query("SELECT * FROM bookings WHERE id = ?").get(bookingId) as any;
+  if (!booking) return c.json({ error: "Booking not found" }, 404);
+  if (booking.sitter_id !== user.userId) {
+    return c.json({ error: "Unauthorized" }, 403);
+  }
+
+  const body = await c.req.json();
+  const { videoData, filename, thumbnail, durationSeconds, careLogId } = body;
+
+  if (!videoData || typeof videoData !== "string") {
+    return c.json({ error: "videoData (base64) is required" }, 400);
+  }
+
+  // Rough 50MB base64 check: base64 is ~4/3 the original size, so ~67MB base64
+  if (videoData.length > 70_000_000) {
+    return c.json({ error: "Video too large. Maximum 50MB." }, 400);
+  }
+
+  const videoId = generateId();
+  run(
+    `INSERT INTO care_videos (id, booking_id, care_log_id, sitter_id, filename, video_data, thumbnail, duration_seconds)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    videoId, bookingId, careLogId || null, user.userId,
+    filename || "video.mp4", videoData, thumbnail || "",
+    durationSeconds || 0
+  );
+
+  // Send notification to the owner
+  const ownerRow = query("SELECT id, email, name FROM users WHERE id = ?").get(booking.owner_id) as any;
+  if (ownerRow) {
+    sendEmail(
+      ownerRow.email || "",
+      `📹 ${user.name} sent you a video of ${booking.dog_name}! — PawWatch`,
+      videoNotificationBody(ownerRow.name, user.name, booking.dog_name),
+      booking.owner_id,
+      "video_upload"
+    ).catch((err) => console.error("Video notification email failed:", err));
+  }
+
+  const row = query("SELECT * FROM care_videos WHERE id = ?").get(videoId) as any;
+
+  return c.json({
+    video: {
+      id: row.id,
+      bookingId: row.booking_id,
+      careLogId: row.care_log_id,
+      sitterId: row.sitter_id,
+      filename: row.filename,
+      videoData: row.video_data,
+      thumbnail: row.thumbnail,
+      durationSeconds: row.duration_seconds,
+      createdAt: row.created_at,
+    },
+  });
+});
+
+// List videos for a booking
+app.get("/bookings/:id/videos", authMiddleware, (c) => {
+  const user = getUser(c);
+  const bookingId = c.req.param("id");
+
+  const booking = query("SELECT * FROM bookings WHERE id = ?").get(bookingId) as any;
+  if (!booking) return c.json({ error: "Booking not found" }, 404);
+  if (booking.owner_id !== user.userId && booking.sitter_id !== user.userId) {
+    return c.json({ error: "Unauthorized" }, 403);
+  }
+
+  const rows = query(
+    "SELECT * FROM care_videos WHERE booking_id = ? ORDER BY created_at DESC"
+  ).all(bookingId);
+
+  const videos = rows.map((r: any) => ({
+    id: r.id,
+    bookingId: r.booking_id,
+    careLogId: r.care_log_id,
+    sitterId: r.sitter_id,
+    filename: r.filename,
+    videoData: r.video_data,
+    thumbnail: r.thumbnail,
+    durationSeconds: r.duration_seconds,
+    createdAt: r.created_at,
+  }));
+
+  return c.json({ videos });
 });
 
 export default app;

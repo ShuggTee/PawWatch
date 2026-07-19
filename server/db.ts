@@ -171,6 +171,20 @@ function initSchema() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+
+  _exec!(`
+    CREATE TABLE IF NOT EXISTS care_videos (
+      id TEXT PRIMARY KEY,
+      booking_id TEXT NOT NULL REFERENCES bookings(id),
+      care_log_id TEXT,
+      sitter_id TEXT NOT NULL REFERENCES users(id),
+      filename TEXT NOT NULL DEFAULT 'video.mp4',
+      video_data TEXT NOT NULL,
+      thumbnail TEXT NOT NULL DEFAULT '',
+      duration_seconds INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
 }
 
 // ── Seed data ──
