@@ -59,6 +59,18 @@ export interface Dog {
   createdAt: string;
 }
 
+export interface CareVideo {
+  id: string;
+  bookingId: string;
+  careLogId: string | null;
+  sitterId: string;
+  filename: string;
+  videoData: string; // base64
+  thumbnail: string; // base64 data URL or empty
+  durationSeconds: number;
+  createdAt: string;
+}
+
 export interface EmailNotification {
   id: string;
   userId: string;

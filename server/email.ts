@@ -272,3 +272,31 @@ export function buildCareSummary(body: any): string {
   }
   return parts.length > 0 ? parts.join("<br>") : "General care check-in completed.";
 }
+
+export function videoNotificationBody(
+  ownerName: string,
+  sitterName: string,
+  dogName: string
+): string {
+  return `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <span style="font-size: 36px;">📹</span>
+        <h1 style="color: #b45309; margin: 8px 0;">New Video Update!</h1>
+      </div>
+      <p style="color: #374151; font-size: 16px;">Hi ${ownerName},</p>
+      <p style="color: #374151; font-size: 16px;">
+        ${sitterName} sent you a video of ${dogName}!
+      </p>
+      <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: center;">
+        <p style="margin: 4px 0; font-size: 24px;">📹</p>
+        <p style="margin: 4px 0; font-size: 16px; font-weight: 600;">${sitterName} shared a video update</p>
+        <p style="margin: 4px 0; color: #6b7280;">Tap below to watch it in the app!</p>
+      </div>
+      <hr style="border: none; border-top: 1px solid #fde68a; margin: 24px 0;" />
+      <p style="color: #9ca3af; font-size: 12px;">
+        This email was sent by PawWatch. Reply to: pawwatch-b14b09f4@ctomail.io
+      </p>
+    </div>
+  `;
+}

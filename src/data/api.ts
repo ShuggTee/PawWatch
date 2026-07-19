@@ -1,4 +1,4 @@
-import type { Booking, CareLog, GpsPosition, Sitter, EmailNotification, Dog } from "../types";
+import type { Booking, CareLog, GpsPosition, Sitter, EmailNotification, Dog, CareVideo } from "../types";
 
 const API_BASE = "/api";
 
@@ -340,4 +340,32 @@ export async function getSitterAvailability(
     `/sitters/${sitterId}/availability?month=${month}`
   );
   return data.bookedDates;
+}
+
+// ── Videos ──
+export async function uploadVideo(
+  bookingId: string,
+  videoData: {
+    videoData: string; // base64
+    filename: string;
+    thumbnail: string;
+    durationSeconds: number;
+    careLogId?: string;
+  }
+): Promise<CareVideo> {
+  const data = await apiFetch<{ video: CareVideo }>(
+    `/bookings/${bookingId}/videos`,
+    {
+      method: "POST",
+      body: JSON.stringify(videoData),
+    }
+  );
+  return data.video;
+}
+
+export async function getVideos(bookingId: string): Promise<CareVideo[]> {
+  const data = await apiFetch<{ videos: CareVideo[] }>(
+    `/bookings/${bookingId}/videos`
+  );
+  return data.videos;
 }
