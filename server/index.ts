@@ -141,6 +141,56 @@ app.get("/sitters/:id/availability", authMiddleware, (c) => {
   return c.json({ bookedDates });
 });
 
+// ── Protected: Active bookings with GPS (for tracking tab) ──
+app.get("/track", authMiddleware, (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can access tracking" }, 403);
+  }
+
+  const rows = query(
+    `SELECT b.*, sp.id as sitter_profile_id, sp.emoji as sitter_emoji, u2.name as sitter_name
+     FROM bookings b
+     JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
+     JOIN users u2 ON u2.id = b.sitter_id
+     WHERE b.owner_id = ?
+     AND b.status IN ('confirmed', 'in-progress')
+     ORDER BY b.created_at DESC`
+  ).all(user.userId) as any[];
+
+  const bookings = rows.map((r: any) => {
+    const gpsRow = query(
+      "SELECT * FROM gps_positions WHERE booking_id = ? ORDER BY timestamp DESC LIMIT 1"
+    ).get(r.id) as any;
+
+    return {
+      id: r.id,
+      sitterId: r.sitter_profile_id,
+      sitterName: r.sitter_name,
+      sitterEmoji: r.sitter_emoji,
+      ownerId: r.owner_id,
+      ownerName: r.owner_name,
+      dogName: r.dog_name,
+      dogBreed: r.dog_breed,
+      address: r.address,
+      date: r.date,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      status: r.status,
+      createdAt: r.created_at,
+      gps: gpsRow
+        ? {
+            lat: gpsRow.lat,
+            lng: gpsRow.lng,
+            timestamp: gpsRow.timestamp,
+          }
+        : null,
+    };
+  });
+
+  return c.json({ bookings });
+});
+
 // ── Protected: Bookings ──
 app.get("/bookings", authMiddleware, (c) => {
   const user = getUser(c);
