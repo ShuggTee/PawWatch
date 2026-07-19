@@ -243,6 +243,15 @@ export default function Dogs() {
                   {dog.age > 0 && dog.weight > 0 && " · "}
                   {dog.weight > 0 && `${dog.weight} lbs`}
                 </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/activity?dog_id=${dog.id}`);
+                  }}
+                  className="mt-2 text-xs text-amber-600 hover:text-amber-800 font-medium underline"
+                >
+                  📊 View Activity →
+                </button>
               </div>
             </button>
           ))}
