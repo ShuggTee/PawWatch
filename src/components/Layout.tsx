@@ -44,12 +44,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/bookings", label: "Bookings", icon: "📋" },
   ];
 
+  const guestTabs = [
+    { path: "/", label: "Home", icon: "🏠" },
+    { path: "/sitters", label: "Sitters", icon: "🔍" },
+    { path: "/become-a-sitter", label: "Earn", icon: "🐕" },
+  ];
+
   const sitterTabs = [
     { path: "/", label: "Home", icon: "🏠" },
     { path: "/sitter-dashboard", label: "My Jobs", icon: "📋" },
   ];
 
-  const tabs = !user ? ownerTabs : user.role === "owner" ? ownerTabs : sitterTabs;
+  const tabs = !user ? guestTabs : user.role === "owner" ? ownerTabs : sitterTabs;
   const isActive = (path: string) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
 
@@ -74,6 +80,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
           {!user ? (
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate("/become-a-sitter")}
+                className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-600 transition-colors hover:bg-amber-100"
+              >
+                Become a Sitter
+              </button>
               <button
                 onClick={() => navigate("/signin")}
                 className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-200"

@@ -9,6 +9,7 @@ import BookingDetail from "./pages/BookingDetail";
 import SitterDashboard from "./pages/SitterDashboard";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
+import BecomeSitter from "./pages/BecomeSitter";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/sitter-dashboard" element={<SitterDashboard />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
+          <Route path="/become-a-sitter" element={<BecomeSitter />} />
         </Routes>
       </Layout>
     </AuthProvider>
