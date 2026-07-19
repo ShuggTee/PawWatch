@@ -1,26 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getBookings, type BookingWithSitter, submitPayment } from "../data/api";
+import { getBookings, type BookingWithSitter, getVerificationStatus } from "../data/api";
 import { useAuth } from "../components/AuthContext";
-
-const VERIFICATION_LINK = "https://buy.stripe.com/eVq9AT7vc568bdOfLd2cg01";
 
 export default function SitterDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [bookings, setBookings] = useState<BookingWithSitter[]>([]);
   const [loading, setLoading] = useState(true);
-  const [verifyMessage, setVerifyMessage] = useState("");
-
-  const handleGetVerified = async () => {
-    window.open(VERIFICATION_LINK, "_blank");
-    try {
-      const result = await submitPayment("verification");
-      setVerifyMessage(result.message);
-    } catch {
-      setVerifyMessage("Payment recorded. Your verification badge will appear after processing.");
-    }
-  };
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -31,6 +20,15 @@ export default function SitterDashboard() {
       .then(setBookings)
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    if (user.role === "sitter") {
+      getVerificationStatus()
+        .then((s) => {
+          setIsVerified(s.isVerified);
+          setPendingVerification(s.pendingVerification);
+        })
+        .catch(() => {});
+    }
   }, [user]);
 
   if (!user || user.role !== "sitter") {
@@ -84,7 +82,7 @@ export default function SitterDashboard() {
         </p>
 
         {/* Verification upsell for unverified sitters */}
-        {!user.isVerified && (
+        {!isVerified && !pendingVerification && (
           <div className="card mt-6 border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-amber-50 text-left">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">✅</span>
@@ -93,16 +91,30 @@ export default function SitterDashboard() {
             <p className="text-sm text-gray-600 mb-2">
               Stand out with a verified badge on your profile.
             </p>
-            <button onClick={handleGetVerified} className="btn-primary w-full text-sm">
+            <button onClick={() => navigate("/verify")} className="btn-primary w-full text-sm">
               Get Verified — $25 one-time
             </button>
-            {verifyMessage && (
-              <p className="mt-2 text-xs text-green-600 font-medium">{verifyMessage}</p>
-            )}
           </div>
         )}
 
-        {user.isVerified && (
+        {pendingVerification && (
+          <div className="card mt-6 border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-white text-left">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">⏳</span>
+              <div>
+                <h3 className="font-bold text-gray-800">Verification Pending</h3>
+                <p className="text-sm text-gray-600">
+                  Your application is under review.
+                </p>
+              </div>
+            </div>
+            <button onClick={() => navigate("/verify")} className="btn-secondary w-full text-sm mt-3">
+              View Status
+            </button>
+          </div>
+        )}
+
+        {isVerified && (
           <div className="card mt-6 border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-amber-50 text-left">
             <div className="flex items-center gap-2">
               <span className="text-2xl">✅</span>
@@ -141,7 +153,7 @@ export default function SitterDashboard() {
       </h2>
 
       {/* Verification card for sitters */}
-      {!user.isVerified ? (
+      {!isVerified && !pendingVerification ? (
         <div className="card mb-4 border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-amber-50">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-2xl">✅</span>
@@ -150,12 +162,22 @@ export default function SitterDashboard() {
           <p className="text-sm text-gray-600 mb-2">
             Stand out with a verified badge on your profile.
           </p>
-          <button onClick={handleGetVerified} className="btn-primary w-full text-sm">
+          <button onClick={() => navigate("/verify")} className="btn-primary w-full text-sm">
             Get Verified — $25 one-time
           </button>
-          {verifyMessage && (
-            <p className="mt-2 text-xs text-green-600 font-medium">{verifyMessage}</p>
-          )}
+        </div>
+      ) : pendingVerification ? (
+        <div className="card mb-4 border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-white">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl">⏳</span>
+            <h3 className="font-bold text-gray-800">Verification Pending</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-2">
+            Your application is under review.
+          </p>
+          <button onClick={() => navigate("/verify")} className="btn-secondary w-full text-sm">
+            View Status
+          </button>
         </div>
       ) : (
         <div className="card mb-4 border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-amber-50">

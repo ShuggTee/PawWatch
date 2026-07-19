@@ -56,6 +56,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const sitterTabs = [
     { path: "/", label: "Home", icon: "🏠" },
     { path: "/sitter-dashboard", label: "My Jobs", icon: "📋" },
+    { path: "/verify", label: "Verify", icon: "✅" },
   ];
 
   const tabs = !user ? guestTabs : user.role === "owner" ? ownerTabs : sitterTabs;

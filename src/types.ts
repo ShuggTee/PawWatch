@@ -125,3 +125,26 @@ export interface ActivityResponse {
   entries: ActivityEntry[];
   stats: ActivityStats;
 }
+
+export interface VerificationApplication {
+  id: string;
+  sitterId: string;
+  fullName: string;
+  phone: string;
+  address: string;
+  yearsExperience: number;
+  certifications: string;
+  firstAidCertified: boolean;
+  reference1Name: string;
+  reference1Phone: string;
+  reference1Relationship: string;
+  reference2Name: string;
+  reference2Phone: string;
+  reference2Relationship: string;
+  consent: boolean;
+  status: "pending" | "approved" | "rejected";
+  reviewedBy: string | null;
+  reviewNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

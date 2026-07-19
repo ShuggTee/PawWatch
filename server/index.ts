@@ -579,6 +579,170 @@ app.put("/sitters/me/verify", authMiddleware, (c) => {
   return c.json({ success: true, isVerified: true });
 });
 
+// ── Verification Applications ──
+
+// Submit a verification application (sitter only)
+app.post("/verify", authMiddleware, async (c) => {
+  const user = getUser(c);
+  if (user.role !== "sitter") {
+    return c.json({ error: "Only sitters can submit verification applications." }, 403);
+  }
+
+  // Check for existing pending/approved application
+  const existing = query(
+    "SELECT id, status FROM verification_applications WHERE sitter_id = ? AND status IN ('pending', 'approved') ORDER BY created_at DESC LIMIT 1"
+  ).get(user.userId) as any;
+  if (existing) {
+    if (existing.status === "approved") {
+      return c.json({ error: "You are already verified." }, 409);
+    }
+    return c.json({ error: "You already have a pending verification application." }, 409);
+  }
+
+  const body = await c.req.json();
+  const {
+    fullName, phone, address, yearsExperience, certifications,
+    firstAidCertified, reference1Name, reference1Phone, reference1Relationship,
+    reference2Name, reference2Phone, reference2Relationship, consent
+  } = body;
+
+  if (!fullName || !phone || !address) {
+    return c.json({ error: "Full name, phone, and address are required." }, 400);
+  }
+  if (!consent) {
+    return c.json({ error: "You must consent to the background check." }, 400);
+  }
+
+  const appId = generateId();
+  run(
+    `INSERT INTO verification_applications
+     (id, sitter_id, full_name, phone, address, years_experience, certifications,
+      first_aid_certified, reference1_name, reference1_phone, reference1_relationship,
+      reference2_name, reference2_phone, reference2_relationship, consent)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    appId, user.userId, fullName, phone, address, yearsExperience || 0,
+    certifications || "", firstAidCertified ? 1 : 0,
+    reference1Name || "", reference1Phone || "", reference1Relationship || "",
+    reference2Name || "", reference2Phone || "", reference2Relationship || "",
+    consent ? 1 : 0
+  );
+
+  // Also set pending_verification on sitter profile
+  run("UPDATE sitter_profiles SET pending_verification = 1 WHERE user_id = ?", user.userId);
+
+  const row = query("SELECT * FROM verification_applications WHERE id = ?").get(appId) as any;
+
+  return c.json({
+    application: {
+      id: row.id,
+      sitterId: row.sitter_id,
+      fullName: row.full_name,
+      phone: row.phone,
+      address: row.address,
+      yearsExperience: row.years_experience,
+      certifications: row.certifications,
+      firstAidCertified: !!row.first_aid_certified,
+      reference1Name: row.reference1_name,
+      reference1Phone: row.reference1_phone,
+      reference1Relationship: row.reference1_relationship,
+      reference2Name: row.reference2_name,
+      reference2Phone: row.reference2_phone,
+      reference2Relationship: row.reference2_relationship,
+      consent: !!row.consent,
+      status: row.status,
+      reviewedBy: row.reviewed_by,
+      reviewNotes: row.review_notes,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    },
+  });
+});
+
+// Get current verification status (sitter only)
+app.get("/verify", authMiddleware, (c) => {
+  const user = getUser(c);
+  if (user.role !== "sitter") {
+    return c.json({ error: "Only sitters can view verification status." }, 403);
+  }
+
+  // Check sitter_profile for verification status
+  const profile = query(
+    "SELECT is_verified, pending_verification FROM sitter_profiles WHERE user_id = ?"
+  ).get(user.userId) as any;
+
+  const isVerified = profile ? !!profile.is_verified : false;
+  const pendingVerification = profile ? !!profile.pending_verification : false;
+
+  // Get most recent application
+  const application = query(
+    "SELECT * FROM verification_applications WHERE sitter_id = ? ORDER BY created_at DESC LIMIT 1"
+  ).get(user.userId) as any;
+
+  return c.json({
+    isVerified,
+    pendingVerification,
+    application: application ? {
+      id: application.id,
+      sitterId: application.sitter_id,
+      fullName: application.full_name,
+      phone: application.phone,
+      address: application.address,
+      yearsExperience: application.years_experience,
+      certifications: application.certifications,
+      firstAidCertified: !!application.first_aid_certified,
+      reference1Name: application.reference1_name,
+      reference1Phone: application.reference1_phone,
+      reference1Relationship: application.reference1_relationship,
+      reference2Name: application.reference2_name,
+      reference2Phone: application.reference2_phone,
+      reference2Relationship: application.reference2_relationship,
+      consent: !!application.consent,
+      status: application.status,
+      reviewedBy: application.reviewed_by,
+      reviewNotes: application.review_notes,
+      createdAt: application.created_at,
+      updatedAt: application.updated_at,
+    } : null,
+  });
+});
+
+// Admin: approve or reject a verification application
+app.put("/verify/:id", authMiddleware, async (c) => {
+  const user = getUser(c);
+  const appId = c.req.param("id");
+  const body = await c.req.json();
+  const { status, reviewNotes } = body;
+
+  if (!status || !["approved", "rejected"].includes(status)) {
+    return c.json({ error: "Status must be 'approved' or 'rejected'." }, 400);
+  }
+
+  const application = query(
+    "SELECT * FROM verification_applications WHERE id = ?"
+  ).get(appId) as any;
+  if (!application) {
+    return c.json({ error: "Application not found." }, 404);
+  }
+  if (application.status !== "pending") {
+    return c.json({ error: "Application has already been reviewed." }, 409);
+  }
+
+  run(
+    "UPDATE verification_applications SET status = ?, reviewed_by = ?, review_notes = ?, updated_at = datetime('now') WHERE id = ?",
+    status, user.userId, reviewNotes || null, appId
+  );
+
+  if (status === "approved") {
+    // Mark the sitter as verified
+    run("UPDATE sitter_profiles SET is_verified = 1, pending_verification = 0 WHERE user_id = ?", application.sitter_id);
+  } else {
+    // Clear pending flag on rejection
+    run("UPDATE sitter_profiles SET pending_verification = 0 WHERE user_id = ?", application.sitter_id);
+  }
+
+  return c.json({ success: true, status });
+});
+
 // ── Notifications ──
 app.get("/notifications", authMiddleware, (c) => {
   const user = getUser(c);
