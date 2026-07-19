@@ -40,6 +40,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const ownerTabs = [
     { path: "/", label: "Home", icon: "🏠" },
+    { path: "/track", label: "Track", icon: "📍" },
     { path: "/sitters", label: "Sitters", icon: "🔍" },
     { path: "/dogs", label: "My Dogs", icon: "🐕" },
     { path: "/bookings", label: "Bookings", icon: "📋" },

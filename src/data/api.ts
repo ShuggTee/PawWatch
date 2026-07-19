@@ -212,6 +212,30 @@ export async function saveGpsPosition(
   });
 }
 
+// ── Active bookings with GPS (Tracking tab) ──
+export interface ActiveBooking {
+  id: string;
+  sitterId: string;
+  sitterName?: string;
+  sitterEmoji?: string;
+  ownerId?: string;
+  ownerName: string;
+  dogName: string;
+  dogBreed: string;
+  address: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  createdAt: string;
+  gps: { lat: number; lng: number; timestamp: string } | null;
+}
+
+export async function getActiveBookings(): Promise<ActiveBooking[]> {
+  const data = await apiFetch<{ bookings: ActiveBooking[] }>("/track");
+  return data.bookings;
+}
+
 // ── Stripe Payment & Premium/Verification ──
 export async function submitPayment(
   type: "premium" | "verification"

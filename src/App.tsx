@@ -11,6 +11,7 @@ import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import BecomeSitter from "./pages/BecomeSitter";
 import Dogs from "./pages/Dogs";
+import Track from "./pages/Track";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/track" element={<Track />} />
           <Route path="/sitters" element={<Sitters />} />
           <Route path="/book/:sitterId" element={<Book />} />
           <Route path="/bookings" element={<Bookings />} />

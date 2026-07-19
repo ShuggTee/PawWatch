@@ -11,6 +11,7 @@ import {
 } from "../data/api";
 import { useAuth } from "../components/AuthContext";
 import type { CareLog, GpsPosition } from "../types";
+import LeafletMap from "../components/LeafletMap";
 
 const ARRIVAL_RADIUS_METERS = 100;
 const OWNER_HOME = { lat: 37.7749, lng: -122.4194 }; // fallback default
@@ -271,19 +272,52 @@ export default function BookingDetail() {
         ) : (
           <>
             {/* Map / position display */}
-            <div className="mb-3 overflow-hidden rounded-xl bg-amber-50/50">
+            <div className="mb-3">
               {currentPos ? (
-                <div className="p-4">
-                  <div className="mb-2 flex items-center gap-2 text-sm text-gray-600">
-                    <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
-                    Live position
-                  </div>
-                  <div className="mb-1 font-mono text-sm text-gray-700">
-                    Lat: {currentPos.lat.toFixed(6)}
-                  </div>
-                  <div className="mb-2 font-mono text-sm text-gray-700">
-                    Lng: {currentPos.lng.toFixed(6)}
-                  </div>
+                <>
+                  <LeafletMap
+                    sitters={[
+                      {
+                        lat: currentPos.lat,
+                        lng: currentPos.lng,
+                        name: isSitter ? "You" : booking.sitterName,
+                        emoji: isSitter ? "📍" : booking.sitterEmoji,
+                        distance,
+                        arrived,
+                      },
+                    ]}
+                    homePosition={OWNER_HOME}
+                    tracking={tracking}
+                    showHome={!isSitter || tracking}
+                    centerOnSitter={tracking}
+                    fallbackContent={
+                      <div className="rounded-xl bg-amber-50/50 p-4">
+                        <div className="mb-2 flex items-center gap-2 text-sm text-gray-600">
+                          <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
+                          Live position
+                        </div>
+                        <div className="mb-1 font-mono text-sm text-gray-700">
+                          Lat: {currentPos.lat.toFixed(6)}
+                        </div>
+                        <div className="mb-2 font-mono text-sm text-gray-700">
+                          Lng: {currentPos.lng.toFixed(6)}
+                        </div>
+                        {distance !== null && (
+                          <div
+                            className={`mt-2 rounded-lg px-3 py-2 text-sm font-semibold ${
+                              arrived
+                                ? "bg-green-100 text-green-700"
+                                : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {arrived
+                              ? "✅ Sitter has arrived at your home!"
+                              : `📍 ${distance}m from your home`}
+                          </div>
+                        )}
+                      </div>
+                    }
+                  />
                   {distance !== null && (
                     <div
                       className={`mt-2 rounded-lg px-3 py-2 text-sm font-semibold ${
@@ -297,15 +331,24 @@ export default function BookingDetail() {
                         : `📍 ${distance}m from your home`}
                     </div>
                   )}
-                </div>
+                </>
               ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-gray-400">
-                  <span className="mb-2 text-3xl">📍</span>
-                  <p className="text-sm">
-                    {isSitter
-                      ? "Start sharing to show your location"
-                      : "Waiting for sitter to share location"}
-                  </p>
+                <div className="flex flex-col items-center justify-center rounded-xl bg-amber-50/50 py-8 text-gray-400">
+                  <LeafletMap
+                    sitters={[]}
+                    homePosition={OWNER_HOME}
+                    showHome={true}
+                    fallbackContent={
+                      <>
+                        <span className="mb-2 text-3xl">📍</span>
+                        <p className="text-sm">
+                          {isSitter
+                            ? "Start sharing to show your location"
+                            : "Waiting for sitter to share location"}
+                        </p>
+                      </>
+                    }
+                  />
                 </div>
               )}
             </div>
