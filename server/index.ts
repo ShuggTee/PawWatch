@@ -806,4 +806,214 @@ app.get("/bookings/:id/videos", authMiddleware, (c) => {
   return c.json({ videos });
 });
 
+// ── Protected: Activity feed (unified care logs + videos) ──
+app.get("/activity", authMiddleware, (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can access activity feed" }, 403);
+  }
+
+  const dogId = c.req.query("dog_id") || "";
+  const dateFrom = c.req.query("from") || "";
+  const dateTo = c.req.query("to") || "";
+  const typeFilter = c.req.query("type") || ""; // feeding, water, treats, playtime, videos
+
+  // Get the dog name if dog_id is provided
+  let dogNameFilter = "";
+  if (dogId) {
+    const dog = query("SELECT name FROM dogs WHERE id = ? AND owner_id = ?").get(dogId, user.userId) as any;
+    if (dog) {
+      dogNameFilter = dog.name;
+    } else {
+      return c.json({ entries: [], stats: { walksThisWeek: 0, feedingStreak: 0, lastVideo: null } });
+    }
+  }
+
+  // Build WHERE clauses for care_logs
+  const careLogConditions: string[] = ["b.owner_id = ?"];
+  const careLogParams: unknown[] = [user.userId];
+
+  if (dogNameFilter) {
+    careLogConditions.push("b.dog_name = ?");
+    careLogParams.push(dogNameFilter);
+  }
+  if (dateFrom) {
+    careLogConditions.push("cl.timestamp >= ?");
+    careLogParams.push(dateFrom);
+  }
+  if (dateTo) {
+    careLogConditions.push("cl.timestamp <= ?");
+    careLogParams.push(dateTo + " 23:59:59");
+  }
+
+  // Build WHERE clauses for videos
+  const videoConditions: string[] = ["b.owner_id = ?"];
+  const videoParams: unknown[] = [user.userId];
+
+  if (dogNameFilter) {
+    videoConditions.push("b.dog_name = ?");
+    videoParams.push(dogNameFilter);
+  }
+  if (dateFrom) {
+    videoConditions.push("cv.created_at >= ?");
+    videoParams.push(dateFrom);
+  }
+  if (dateTo) {
+    videoConditions.push("cv.created_at <= ?");
+    videoParams.push(dateTo + " 23:59:59");
+  }
+
+  const entries: any[] = [];
+
+  // Fetch care logs
+  if (!typeFilter || ["feeding", "water", "treats", "playtime"].includes(typeFilter)) {
+    const careLogWhere = careLogConditions.join(" AND ");
+    const careLogRows = query(
+      `SELECT 
+        cl.id, cl.booking_id, cl.timestamp,
+        cl.feeding, cl.feeding_notes, cl.water_changed,
+        cl.treats, cl.treat_notes, cl.playtime_minutes, cl.playtime_notes,
+        b.dog_name, b.dog_breed, b.owner_id,
+        u2.name as sitter_name, sp.emoji as sitter_emoji
+       FROM care_logs cl
+       JOIN bookings b ON cl.booking_id = b.id
+       JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
+       JOIN users u2 ON u2.id = b.sitter_id
+       WHERE ${careLogWhere}
+       ORDER BY cl.timestamp DESC
+       LIMIT 200`
+    ).all(...careLogParams) as any[];
+
+    for (const r of careLogRows) {
+      // Type filter (skip if this log doesn't match the requested type)
+      if (typeFilter) {
+        if (typeFilter === "feeding" && !r.feeding) continue;
+        if (typeFilter === "water" && !r.water_changed) continue;
+        if (typeFilter === "treats" && !r.treats) continue;
+        if (typeFilter === "playtime" && !r.playtime_minutes) continue;
+      }
+      entries.push({
+        id: r.id,
+        entryType: "care_log",
+        bookingId: r.booking_id,
+        timestamp: r.timestamp,
+        dogName: r.dog_name,
+        dogBreed: r.dog_breed,
+        sitterName: r.sitter_name,
+        sitterEmoji: r.sitter_emoji,
+        feeding: !!r.feeding,
+        feedingNotes: r.feeding_notes || "",
+        waterChanged: !!r.water_changed,
+        treats: !!r.treats,
+        treatNotes: r.treat_notes || "",
+        playtimeMinutes: r.playtime_minutes || 0,
+        playtimeNotes: r.playtime_notes || "",
+      });
+    }
+  }
+
+  // Fetch videos
+  if (!typeFilter || typeFilter === "videos") {
+    const videoWhere = videoConditions.join(" AND ");
+    const videoRows = query(
+      `SELECT 
+        cv.id, cv.booking_id, cv.created_at as timestamp,
+        cv.filename, cv.video_data, cv.thumbnail, cv.duration_seconds,
+        b.dog_name, b.dog_breed,
+        u2.name as sitter_name, sp.emoji as sitter_emoji
+       FROM care_videos cv
+       JOIN bookings b ON cv.booking_id = b.id
+       JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
+       JOIN users u2 ON u2.id = b.sitter_id
+       WHERE ${videoWhere}
+       ORDER BY cv.created_at DESC
+       LIMIT 100`
+    ).all(...videoParams) as any[];
+
+    for (const r of videoRows) {
+      entries.push({
+        id: r.id,
+        entryType: "video",
+        bookingId: r.booking_id,
+        timestamp: r.timestamp,
+        dogName: r.dog_name,
+        dogBreed: r.dog_breed,
+        sitterName: r.sitter_name,
+        sitterEmoji: r.sitter_emoji,
+        filename: r.filename,
+        videoData: r.video_data,
+        thumbnail: r.thumbnail,
+        durationSeconds: r.duration_seconds || 0,
+      });
+    }
+  }
+
+  // Sort merged entries by timestamp descending
+  entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  // ── Summary stats ──
+  // Total playtime this week
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString();
+
+  const playtimeRow = query(
+    `SELECT COALESCE(SUM(cl.playtime_minutes), 0) as total
+     FROM care_logs cl
+     JOIN bookings b ON cl.booking_id = b.id
+     WHERE b.owner_id = ? AND cl.timestamp >= ?`
+  ).get(user.userId, weekAgoStr) as any;
+  const walksThisWeek = playtimeRow?.total || 0;
+
+  // Feeding streak (consecutive days with at least one feeding)
+  const feedingDays = query(
+    `SELECT DISTINCT date(cl.timestamp) as day
+     FROM care_logs cl
+     JOIN bookings b ON cl.booking_id = b.id
+     WHERE b.owner_id = ? AND cl.feeding = 1
+     ORDER BY day DESC
+     LIMIT 60`
+  ).all(user.userId) as any[];
+
+  let feedingStreak = 0;
+  const todayStr = new Date().toISOString().split("T")[0];
+  const feedingDaySet = new Set(feedingDays.map((r: any) => r.day));
+
+  if (feedingDaySet.has(todayStr)) {
+    feedingStreak = 1;
+    const d = new Date();
+    while (true) {
+      d.setDate(d.getDate() - 1);
+      const check = d.toISOString().split("T")[0];
+      if (feedingDaySet.has(check)) {
+        feedingStreak++;
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Last video received
+  const lastVideoRow = query(
+    `SELECT cv.id, cv.created_at, cv.thumbnail, b.dog_name
+     FROM care_videos cv
+     JOIN bookings b ON cv.booking_id = b.id
+     WHERE b.owner_id = ?
+     ORDER BY cv.created_at DESC LIMIT 1`
+  ).get(user.userId) as any;
+
+  const stats = {
+    walksThisWeek,
+    feedingStreak,
+    lastVideo: lastVideoRow ? {
+      id: lastVideoRow.id,
+      timestamp: lastVideoRow.created_at,
+      thumbnail: lastVideoRow.thumbnail,
+      dogName: lastVideoRow.dog_name,
+    } : null,
+  };
+
+  return c.json({ entries, stats });
+});
+
 export default app;

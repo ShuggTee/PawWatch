@@ -79,3 +79,49 @@ export interface EmailNotification {
   body: string;
   sentAt: string;
 }
+
+export interface ActivityCareLogEntry {
+  id: string;
+  entryType: "care_log";
+  bookingId: string;
+  timestamp: string;
+  dogName: string;
+  dogBreed: string;
+  sitterName: string;
+  sitterEmoji: string;
+  feeding: boolean;
+  feedingNotes: string;
+  waterChanged: boolean;
+  treats: boolean;
+  treatNotes: string;
+  playtimeMinutes: number;
+  playtimeNotes: string;
+}
+
+export interface ActivityVideoEntry {
+  id: string;
+  entryType: "video";
+  bookingId: string;
+  timestamp: string;
+  dogName: string;
+  dogBreed: string;
+  sitterName: string;
+  sitterEmoji: string;
+  filename: string;
+  videoData: string;
+  thumbnail: string;
+  durationSeconds: number;
+}
+
+export type ActivityEntry = ActivityCareLogEntry | ActivityVideoEntry;
+
+export interface ActivityStats {
+  walksThisWeek: number;
+  feedingStreak: number;
+  lastVideo: { id: string; timestamp: string; thumbnail: string; dogName: string } | null;
+}
+
+export interface ActivityResponse {
+  entries: ActivityEntry[];
+  stats: ActivityStats;
+}

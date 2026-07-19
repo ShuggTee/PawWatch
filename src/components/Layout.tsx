@@ -42,6 +42,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/", label: "Home", icon: "🏠" },
     { path: "/track", label: "Track", icon: "📍" },
     { path: "/sitters", label: "Sitters", icon: "🔍" },
+    { path: "/activity", label: "Activity", icon: "📊" },
     { path: "/dogs", label: "My Dogs", icon: "🐕" },
     { path: "/bookings", label: "Bookings", icon: "📋" },
   ];

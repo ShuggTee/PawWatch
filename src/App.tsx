@@ -12,6 +12,7 @@ import SignUp from "./pages/SignUp";
 import BecomeSitter from "./pages/BecomeSitter";
 import Dogs from "./pages/Dogs";
 import Track from "./pages/Track";
+import ActivityLog from "./pages/ActivityLog";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/booking/:bookingId" element={<BookingDetail />} />
           <Route path="/sitter-dashboard" element={<SitterDashboard />} />
           <Route path="/dogs" element={<Dogs />} />
+          <Route path="/activity" element={<ActivityLog />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/become-a-sitter" element={<BecomeSitter />} />

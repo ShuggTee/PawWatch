@@ -1,4 +1,4 @@
-import type { Booking, CareLog, GpsPosition, Sitter, EmailNotification, Dog, CareVideo } from "../types";
+import type { Booking, CareLog, GpsPosition, Sitter, EmailNotification, Dog, CareVideo, ActivityResponse } from "../types";
 
 const API_BASE = "/api";
 
@@ -368,4 +368,23 @@ export async function getVideos(bookingId: string): Promise<CareVideo[]> {
     `/bookings/${bookingId}/videos`
   );
   return data.videos;
+}
+
+// ── Activity feed ──
+export async function getActivity(params?: {
+  dog_id?: string;
+  from?: string;
+  to?: string;
+  type?: string;
+}): Promise<ActivityResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.dog_id) searchParams.set("dog_id", params.dog_id);
+  if (params?.from) searchParams.set("from", params.from);
+  if (params?.to) searchParams.set("to", params.to);
+  if (params?.type) searchParams.set("type", params.type);
+  const qs = searchParams.toString();
+  const data = await apiFetch<ActivityResponse>(
+    `/activity${qs ? `?${qs}` : ""}`
+  );
+  return data;
 }
