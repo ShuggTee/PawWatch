@@ -10,6 +10,7 @@ import SitterDashboard from "./pages/SitterDashboard";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import BecomeSitter from "./pages/BecomeSitter";
+import Verify from "./pages/Verify";
 import Dogs from "./pages/Dogs";
 import Track from "./pages/Track";
 import ActivityLog from "./pages/ActivityLog";
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/become-a-sitter" element={<BecomeSitter />} />
+          <Route path="/verify" element={<Verify />} />
         </Routes>
       </Layout>
     </AuthProvider>

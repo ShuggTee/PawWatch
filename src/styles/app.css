@@ -68,6 +68,11 @@
   .input-row {
     @apply mb-4;
   }
+
+  .input-field {
+    @apply w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-base 
+           focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30;
+  }
 }
 
 /* Bottom nav bar */

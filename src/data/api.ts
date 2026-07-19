@@ -1,4 +1,4 @@
-import type { Booking, CareLog, GpsPosition, Sitter, EmailNotification, Dog, CareVideo, ActivityResponse } from "../types";
+import type { Booking, CareLog, GpsPosition, Sitter, EmailNotification, Dog, CareVideo, ActivityResponse, VerificationApplication } from "../types";
 
 const API_BASE = "/api";
 
@@ -387,4 +387,47 @@ export async function getActivity(params?: {
     `/activity${qs ? `?${qs}` : ""}`
   );
   return data;
+}
+
+// ── Verification ──
+export interface VerificationStatus {
+  isVerified: boolean;
+  pendingVerification: boolean;
+  application: VerificationApplication | null;
+}
+
+export async function submitVerification(data: {
+  fullName: string;
+  phone: string;
+  address: string;
+  yearsExperience: number;
+  certifications: string;
+  firstAidCertified: boolean;
+  reference1Name: string;
+  reference1Phone: string;
+  reference1Relationship: string;
+  reference2Name: string;
+  reference2Phone: string;
+  reference2Relationship: string;
+  consent: boolean;
+}): Promise<VerificationApplication> {
+  const result = await apiFetch<{ application: VerificationApplication }>("/verify", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return result.application;
+}
+
+export async function getVerificationStatus(): Promise<VerificationStatus> {
+  return apiFetch<VerificationStatus>("/verify");
+}
+
+export async function reviewVerification(
+  appId: string,
+  review: { status: "approved" | "rejected"; reviewNotes?: string }
+): Promise<{ success: boolean; status: string }> {
+  return apiFetch<{ success: boolean; status: string }>(`/verify/${appId}`, {
+    method: "PUT",
+    body: JSON.stringify(review),
+  });
 }
