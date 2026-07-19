@@ -61,9 +61,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/verify", label: "Verify", icon: "✅" },
   ];
 
-  const tabs = !user ? guestTabs : user.role === "owner" ? ownerTabs : sitterTabs;
+  const tabs = !user
+    ? ownerTabs
+    : user.role === "owner"
+      ? ownerTabs
+      : sitterTabs;
   const isActive = (path: string) =>
-    path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
+    path === "/"
+      ? location.pathname === "/"
+      : location.pathname.startsWith(path);
 
   const handleLogout = () => {
     logout();
@@ -169,7 +175,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <p className="text-sm font-semibold text-gray-800 truncate">
                       {user.name}
                     </p>
-                    <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {user.email}
+                    </p>
                     <div className="mt-1 flex items-center gap-1.5">
                       <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                         {user.role === "owner" ? "Owner" : "Sitter"}

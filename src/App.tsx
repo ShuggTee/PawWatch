@@ -1,4 +1,5 @@
 import { Routes, Route } from "react-router-dom";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { AuthProvider } from "./components/AuthContext";
 import Layout from "./components/Layout";
 import Home from "./pages/Home";
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="/community" element={<Community />} />
         </Routes>
       </Layout>
+      <SpeedInsights />
     </AuthProvider>
   );
 }

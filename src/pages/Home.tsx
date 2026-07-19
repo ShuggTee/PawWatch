@@ -18,7 +18,9 @@ export default function Home() {
       const result = await submitPayment("premium");
       setPremiumMessage(result.message);
     } catch {
-      setPremiumMessage("Payment recorded. Your premium status will activate shortly after verification.");
+      setPremiumMessage(
+        "Payment recorded. Your premium status will activate shortly after verification.",
+      );
     }
   };
 
@@ -28,7 +30,9 @@ export default function Home() {
       const result = await submitPayment("verification");
       setVerifyMessage(result.message);
     } catch {
-      setVerifyMessage("Payment recorded. Your verification badge will appear after processing.");
+      setVerifyMessage(
+        "Payment recorded. Your verification badge will appear after processing.",
+      );
     }
   };
 
@@ -84,18 +88,24 @@ export default function Home() {
                 <h3 className="font-bold text-gray-800">Upgrade to Premium</h3>
               </div>
               <p className="text-sm text-gray-600 mb-2">
-                Unlock GPS tracking, care log history beyond 7 days, and multi-dog support.
+                Unlock GPS tracking, care log history beyond 7 days, and
+                multi-dog support.
               </p>
               <ul className="text-xs text-gray-500 mb-3 space-y-1">
                 <li>📍 Real-time GPS tracking</li>
                 <li>📝 Extended care log history</li>
                 <li>🐕 Multi-dog support</li>
               </ul>
-              <button onClick={handleGoPremium} className="btn-primary w-full text-sm">
+              <button
+                onClick={handleGoPremium}
+                className="btn-primary w-full text-sm"
+              >
                 Go Premium — $7/month
               </button>
               {premiumMessage && (
-                <p className="mt-2 text-xs text-green-600 font-medium">{premiumMessage}</p>
+                <p className="mt-2 text-xs text-green-600 font-medium">
+                  {premiumMessage}
+                </p>
               )}
             </div>
           )}
@@ -168,18 +178,24 @@ export default function Home() {
                 <h3 className="font-bold text-gray-800">Get Verified</h3>
               </div>
               <p className="text-sm text-gray-600 mb-2">
-                Stand out with a verified badge. Appears on your profile and in search results.
+                Stand out with a verified badge. Appears on your profile and in
+                search results.
               </p>
               <ul className="text-xs text-gray-500 mb-3 space-y-1">
                 <li>🔵 Blue checkmark badge</li>
                 <li>📈 Higher ranking in search</li>
                 <li>🤝 More trust from owners</li>
               </ul>
-              <button onClick={handleGetVerified} className="btn-primary w-full text-sm">
+              <button
+                onClick={handleGetVerified}
+                className="btn-primary w-full text-sm"
+              >
                 Get Verified — $25 one-time
               </button>
               {verifyMessage && (
-                <p className="mt-2 text-xs text-green-600 font-medium">{verifyMessage}</p>
+                <p className="mt-2 text-xs text-green-600 font-medium">
+                  {verifyMessage}
+                </p>
               )}
             </div>
           )}
@@ -215,7 +231,8 @@ export default function Home() {
               <div>
                 <h3 className="font-semibold text-gray-800">Log Care</h3>
                 <p className="text-sm text-gray-500">
-                  Quick care log after each visit — feeding, water, treats, playtime.
+                  Quick care log after each visit — feeding, water, treats,
+                  playtime.
                 </p>
               </div>
             </div>

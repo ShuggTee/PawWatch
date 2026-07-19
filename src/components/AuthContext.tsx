@@ -24,7 +24,7 @@ interface AuthContextValue {
     email: string,
     password: string,
     name: string,
-    role: "owner" | "sitter"
+    role: "owner" | "sitter",
   ) => Promise<void>;
   logout: () => void;
 }
@@ -60,12 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: string,
       password: string,
       name: string,
-      role: "owner" | "sitter"
+      role: "owner" | "sitter",
     ) => {
       const result = await apiSignup(email, password, name, role);
       setUser(result.user);
     },
-    []
+    [],
   );
 
   const logout = useCallback(() => {

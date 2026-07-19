@@ -2,7 +2,8 @@ import { query, run } from "./db";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "pawwatch-dev-secret-change-in-production";
+const JWT_SECRET =
+  process.env.JWT_SECRET || "pawwatch-dev-secret-change-in-production";
 const TOKEN_EXPIRY = "7d";
 
 export interface UserPayload {
@@ -52,7 +53,7 @@ export function createUser(
   email: string,
   password: string,
   name: string,
-  role: "owner" | "sitter"
+  role: "owner" | "sitter",
 ): { user: AuthUser; token: string } | { error: string } {
   const existing = query("SELECT id FROM users WHERE email = ?").get(email);
   if (existing) {
@@ -64,7 +65,11 @@ export function createUser(
 
   run(
     "INSERT INTO users (id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)",
-    id, email, passwordHash, name, role
+    id,
+    email,
+    passwordHash,
+    name,
+    role,
   );
 
   // If sitter, create a sitter profile automatically
@@ -72,21 +77,36 @@ export function createUser(
     const profileId = generateId();
     run(
       "INSERT INTO sitter_profiles (id, user_id, emoji, bio, specialties) VALUES (?, ?, '🐾', 'New PawWatch sitter!', '[]')",
-      profileId, id
+      profileId,
+      id,
     );
   }
 
-  const user: AuthUser = { id, email, name, role, isPremium: false, premiumUntil: null };
-  const token = createToken({ userId: id, email, name, role, isPremium: false, premiumUntil: null });
+  const user: AuthUser = {
+    id,
+    email,
+    name,
+    role,
+    isPremium: false,
+    premiumUntil: null,
+  };
+  const token = createToken({
+    userId: id,
+    email,
+    name,
+    role,
+    isPremium: false,
+    premiumUntil: null,
+  });
   return { user, token };
 }
 
 export function loginUser(
   email: string,
-  password: string
+  password: string,
 ): { user: AuthUser; token: string } | { error: string } {
   const row = query(
-    "SELECT id, email, password_hash, name, role, is_premium, premium_until FROM users WHERE email = ?"
+    "SELECT id, email, password_hash, name, role, is_premium, premium_until FROM users WHERE email = ?",
   ).get(email) as any;
 
   if (!row) {
@@ -108,14 +128,21 @@ export function loginUser(
     isPremium,
     premiumUntil,
   };
-  const token = createToken({ userId: user.id, email: user.email, name: user.name, role: user.role, isPremium, premiumUntil });
+  const token = createToken({
+    userId: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    isPremium,
+    premiumUntil,
+  });
   return { user, token };
 }
 
 export function getUserById(id: string): AuthUser | undefined {
   const row = query(
     `SELECT u.id, u.email, u.name, u.role, u.is_premium, u.premium_until, sp.is_verified 
-     FROM users u LEFT JOIN sitter_profiles sp ON sp.user_id = u.id WHERE u.id = ?`
+     FROM users u LEFT JOIN sitter_profiles sp ON sp.user_id = u.id WHERE u.id = ?`,
   ).get(id) as any;
   if (!row) return undefined;
   return {

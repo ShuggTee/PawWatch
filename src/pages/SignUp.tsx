@@ -17,7 +17,7 @@ export default function SignUp() {
   const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
@@ -134,7 +134,10 @@ export default function SignUp() {
 
           <p className="mt-4 text-center text-sm text-gray-500">
             Already have an account?{" "}
-            <Link to="/signin" className="font-semibold text-amber-600 hover:text-amber-700">
+            <Link
+              to="/signin"
+              className="font-semibold text-amber-600 hover:text-amber-700"
+            >
               Sign In
             </Link>
           </p>

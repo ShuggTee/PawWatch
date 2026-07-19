@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getBookings, type BookingWithSitter, getVerificationStatus } from "../data/api";
+import {
+  getBookings,
+  type BookingWithSitter,
+  submitPayment,
+} from "../data/api";
 import { useAuth } from "../components/AuthContext";
 
 export default function SitterDashboard() {
@@ -8,6 +12,19 @@ export default function SitterDashboard() {
   const { user } = useAuth();
   const [bookings, setBookings] = useState<BookingWithSitter[]>([]);
   const [loading, setLoading] = useState(true);
+  const [verifyMessage, setVerifyMessage] = useState("");
+
+  const handleGetVerified = async () => {
+    window.open(VERIFICATION_LINK, "_blank");
+    try {
+      const result = await submitPayment("verification");
+      setVerifyMessage(result.message);
+    } catch {
+      setVerifyMessage(
+        "Payment recorded. Your verification badge will appear after processing.",
+      );
+    }
+  };
   const [pendingVerification, setPendingVerification] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
 
@@ -37,7 +54,9 @@ export default function SitterDashboard() {
         <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-4xl">
           🔒
         </div>
-        <h2 className="mb-2 text-xl font-bold text-gray-800">Sitter access only</h2>
+        <h2 className="mb-2 text-xl font-bold text-gray-800">
+          Sitter access only
+        </h2>
         <p className="mb-6 text-gray-500">
           Sign in as a sitter to view your jobs.
         </p>
@@ -59,16 +78,20 @@ export default function SitterDashboard() {
     );
   }
 
-  const activeBookings = bookings.filter((b) => b.status !== "completed").sort(
-    (a, b) =>
-      new Date(a.date).getTime() - new Date(b.date).getTime() ||
-      a.startTime.localeCompare(b.startTime)
-  );
+  const activeBookings = bookings
+    .filter((b) => b.status !== "completed")
+    .sort(
+      (a, b) =>
+        new Date(a.date).getTime() - new Date(b.date).getTime() ||
+        a.startTime.localeCompare(b.startTime),
+    );
 
-  const completedBookings = bookings.filter((b) => b.status === "completed").sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  const completedBookings = bookings
+    .filter((b) => b.status === "completed")
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
 
   if (activeBookings.length === 0 && completedBookings.length === 0) {
     return (
@@ -91,6 +114,17 @@ export default function SitterDashboard() {
             <p className="text-sm text-gray-600 mb-2">
               Stand out with a verified badge on your profile.
             </p>
+            <button
+              onClick={handleGetVerified}
+              className="btn-primary w-full text-sm"
+            >
+              Get Verified — $25 one-time
+            </button>
+            {verifyMessage && (
+              <p className="mt-2 text-xs text-green-600 font-medium">
+                {verifyMessage}
+              </p>
+            )}
             <button onClick={() => navigate("/verify")} className="btn-primary w-full text-sm">
               Get Verified — $25 one-time
             </button>
@@ -162,6 +196,17 @@ export default function SitterDashboard() {
           <p className="text-sm text-gray-600 mb-2">
             Stand out with a verified badge on your profile.
           </p>
+          <button
+            onClick={handleGetVerified}
+            className="btn-primary w-full text-sm"
+          >
+            Get Verified — $25 one-time
+          </button>
+          {verifyMessage && (
+            <p className="mt-2 text-xs text-green-600 font-medium">
+              {verifyMessage}
+            </p>
+          )}
           <button onClick={() => navigate("/verify")} className="btn-primary w-full text-sm">
             Get Verified — $25 one-time
           </button>
@@ -185,7 +230,9 @@ export default function SitterDashboard() {
             <span className="text-2xl">✅</span>
             <div>
               <h3 className="font-bold text-gray-800">Verified Sitter</h3>
-              <p className="text-sm text-gray-600">Your badge is active on your profile.</p>
+              <p className="text-sm text-gray-600">
+                Your badge is active on your profile.
+              </p>
             </div>
           </div>
         </div>

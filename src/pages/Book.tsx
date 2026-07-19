@@ -85,21 +85,17 @@ export default function Book() {
         <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-4xl">
           🔒
         </div>
-        <h2 className="mb-2 text-xl font-bold text-gray-800">Sign in to book</h2>
+        <h2 className="mb-2 text-xl font-bold text-gray-800">
+          Sign in to book
+        </h2>
         <p className="mb-6 text-gray-500">
           Create an account or sign in to book a sitter.
         </p>
         <div className="grid gap-3">
-          <button
-            onClick={() => navigate("/signin")}
-            className="btn-primary"
-          >
+          <button onClick={() => navigate("/signin")} className="btn-primary">
             Sign In
           </button>
-          <button
-            onClick={() => navigate("/signup")}
-            className="btn-secondary"
-          >
+          <button onClick={() => navigate("/signup")} className="btn-secondary">
             Create Account
           </button>
         </div>
@@ -113,7 +109,9 @@ export default function Book() {
         <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-4xl">
           🐕
         </div>
-        <h2 className="mb-2 text-xl font-bold text-gray-800">Sitters can&apos;t book</h2>
+        <h2 className="mb-2 text-xl font-bold text-gray-800">
+          Sitters can&apos;t book
+        </h2>
         <p className="mb-6 text-gray-500">
           Switch to an owner account to book sitters.
         </p>
@@ -139,7 +137,10 @@ export default function Book() {
     return (
       <div className="page-container text-center">
         <p className="text-gray-500">Sitter not found.</p>
-        <button onClick={() => navigate("/sitters")} className="btn-secondary mt-4">
+        <button
+          onClick={() => navigate("/sitters")}
+          className="btn-secondary mt-4"
+        >
           Back to sitters
         </button>
       </div>
@@ -159,7 +160,7 @@ export default function Book() {
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     // If user manually edits dog fields, clear the dropdown selection
@@ -200,16 +201,15 @@ export default function Book() {
         <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-4xl">
           ✅
         </div>
-        <h2 className="mb-2 text-2xl font-bold text-gray-800">Booking Confirmed!</h2>
+        <h2 className="mb-2 text-2xl font-bold text-gray-800">
+          Booking Confirmed!
+        </h2>
         <p className="mb-6 text-gray-500">
           {sitter.name} will take care of {form.dogName || "your pup"} on{" "}
           {form.date} from {form.startTime} to {form.endTime}.
         </p>
         <div className="grid gap-3">
-          <button
-            onClick={() => navigate(`/bookings`)}
-            className="btn-primary"
-          >
+          <button onClick={() => navigate(`/bookings`)} className="btn-primary">
             View My Bookings
           </button>
           <button
@@ -240,7 +240,11 @@ export default function Book() {
         <div>
           <h2 className="font-semibold text-gray-800 flex items-center gap-1.5">
             {sitter.name}
-            {sitter.isVerified && <span className="text-sm" title="Verified Sitter">✅</span>}
+            {sitter.isVerified && (
+              <span className="text-sm" title="Verified Sitter">
+                ✅
+              </span>
+            )}
           </h2>
           <p className="text-sm text-gray-500">
             ⭐ {sitter.rating} · ${sitter.pricePerHour}/hr
@@ -431,8 +435,14 @@ export default function Book() {
           </div>
         )}
 
-        <button type="submit" disabled={submitting} className="btn-primary mt-2 w-full">
-          {submitting ? "Booking..." : `Confirm Booking — $${sitter.pricePerHour}/hr`}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="btn-primary mt-2 w-full"
+        >
+          {submitting
+            ? "Booking..."
+            : `Confirm Booking — $${sitter.pricePerHour}/hr`}
         </button>
       </form>
     </div>

@@ -82,8 +82,18 @@ function initSchema() {
     )
   `);
 
-  try { _exec!("ALTER TABLE users ADD COLUMN is_premium INTEGER NOT NULL DEFAULT 0"); } catch (_e: unknown) { /* exists */ }
-  try { _exec!("ALTER TABLE users ADD COLUMN premium_until TEXT"); } catch (_e: unknown) { /* exists */ }
+  try {
+    _exec!(
+      "ALTER TABLE users ADD COLUMN is_premium INTEGER NOT NULL DEFAULT 0",
+    );
+  } catch (_e: unknown) {
+    /* exists */
+  }
+  try {
+    _exec!("ALTER TABLE users ADD COLUMN premium_until TEXT");
+  } catch (_e: unknown) {
+    /* exists */
+  }
 
   _exec!(`
     CREATE TABLE IF NOT EXISTS sitter_profiles (
@@ -99,9 +109,27 @@ function initSchema() {
     )
   `);
 
-  try { _exec!("ALTER TABLE sitter_profiles ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0"); } catch (_e: unknown) { /* exists */ }
-  try { _exec!("ALTER TABLE sitter_profiles ADD COLUMN pending_verification INTEGER NOT NULL DEFAULT 0"); } catch (_e: unknown) { /* exists */ }
-  try { _exec!("ALTER TABLE users ADD COLUMN pending_premium INTEGER NOT NULL DEFAULT 0"); } catch (_e: unknown) { /* exists */ }
+  try {
+    _exec!(
+      "ALTER TABLE sitter_profiles ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0",
+    );
+  } catch (_e: unknown) {
+    /* exists */
+  }
+  try {
+    _exec!(
+      "ALTER TABLE sitter_profiles ADD COLUMN pending_verification INTEGER NOT NULL DEFAULT 0",
+    );
+  } catch (_e: unknown) {
+    /* exists */
+  }
+  try {
+    _exec!(
+      "ALTER TABLE users ADD COLUMN pending_premium INTEGER NOT NULL DEFAULT 0",
+    );
+  } catch (_e: unknown) {
+    /* exists */
+  }
 
   _exec!(`
     CREATE TABLE IF NOT EXISTS bookings (
@@ -215,7 +243,9 @@ function initSchema() {
 // ── Seed data ──
 
 function seedMockSittersSync() {
-  const count = _query!("SELECT COUNT(*) as c FROM sitter_profiles").get() as { c: number } | null;
+  const count = _query!("SELECT COUNT(*) as c FROM sitter_profiles").get() as {
+    c: number;
+  } | null;
   if (count && count.c > 0) return;
 
   for (let i = 0; i < MOCK_SITTERS.length; i++) {
@@ -224,11 +254,21 @@ function seedMockSittersSync() {
     const profileId = `mock-profile-${i + 1}`;
     _run!(
       "INSERT INTO users (id, email, password_hash, name, role, created_at) VALUES (?, ?, ?, ?, 'sitter', datetime('now'))",
-      userId, `mock${i + 1}@pawwatch.internal`, "$2a$10$placeholder", s.name
+      userId,
+      `mock${i + 1}@pawwatch.internal`,
+      "$2a$10$placeholder",
+      s.name,
     );
     _run!(
       "INSERT INTO sitter_profiles (id, user_id, emoji, rating, review_count, bio, price_per_hour, specialties, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
-      profileId, userId, s.emoji, s.rating, s.reviewCount, s.bio, s.pricePerHour, JSON.stringify(s.specialties)
+      profileId,
+      userId,
+      s.emoji,
+      s.rating,
+      s.reviewCount,
+      s.bio,
+      s.pricePerHour,
+      JSON.stringify(s.specialties),
     );
   }
 }
@@ -299,7 +339,9 @@ async function ensureTursoReady(): Promise<void> {
     initSchema();
 
     // Seed mock sitters (async-safe version)
-    const count = _query!("SELECT COUNT(*) as c FROM sitter_profiles").get() as { c: number } | null;
+    const count = _query!(
+      "SELECT COUNT(*) as c FROM sitter_profiles",
+    ).get() as { c: number } | null;
     if (!count || count.c === 0) {
       for (let i = 0; i < MOCK_SITTERS.length; i++) {
         const s = MOCK_SITTERS[i];
@@ -307,11 +349,21 @@ async function ensureTursoReady(): Promise<void> {
         const profileId = `mock-profile-${i + 1}`;
         _run!(
           "INSERT INTO users (id, email, password_hash, name, role, created_at) VALUES (?, ?, ?, ?, 'sitter', datetime('now'))",
-          userId, `mock${i + 1}@pawwatch.internal`, "$2a$10$placeholder", s.name
+          userId,
+          `mock${i + 1}@pawwatch.internal`,
+          "$2a$10$placeholder",
+          s.name,
         );
         _run!(
           "INSERT INTO sitter_profiles (id, user_id, emoji, rating, review_count, bio, price_per_hour, specialties, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
-          profileId, userId, s.emoji, s.rating, s.reviewCount, s.bio, s.pricePerHour, JSON.stringify(s.specialties)
+          profileId,
+          userId,
+          s.emoji,
+          s.rating,
+          s.reviewCount,
+          s.bio,
+          s.pricePerHour,
+          JSON.stringify(s.specialties),
         );
       }
     }
@@ -327,7 +379,7 @@ export function query(sql: string): QueryHelper {
     // Must be Turso lazy init path; throw synchronously for now
     // (on Vercel, init is triggered by a warm-up invocation before real traffic)
     throw new Error(
-      "DB not initialized. Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN for production, or use bun:sqlite for local dev."
+      "DB not initialized. Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN for production, or use bun:sqlite for local dev.",
     );
   }
   return _query(sql);
@@ -336,7 +388,7 @@ export function query(sql: string): QueryHelper {
 export function run(sql: string, ...params: unknown[]): void {
   if (!_run) {
     throw new Error(
-      "DB not initialized. Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN for production, or use bun:sqlite for local dev."
+      "DB not initialized. Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN for production, or use bun:sqlite for local dev.",
     );
   }
   _run(sql, ...params);
@@ -353,7 +405,7 @@ export function waitForDb(): Promise<void> {
 export function getAllSitters(): Sitter[] {
   const rows = query(
     `SELECT sp.id, sp.emoji, sp.rating, sp.review_count, sp.bio, sp.price_per_hour, sp.specialties, sp.is_verified, u.name 
-     FROM sitter_profiles sp JOIN users u ON sp.user_id = u.id`
+     FROM sitter_profiles sp JOIN users u ON sp.user_id = u.id`,
   ).all() as any[];
 
   return rows.map((r) => ({
@@ -372,7 +424,7 @@ export function getAllSitters(): Sitter[] {
 export function getSitterById(id: string): Sitter | undefined {
   const row = query(
     `SELECT sp.id, sp.emoji, sp.rating, sp.review_count, sp.bio, sp.price_per_hour, sp.specialties, sp.is_verified, u.name 
-     FROM sitter_profiles sp JOIN users u ON sp.user_id = u.id WHERE sp.id = ?`
+     FROM sitter_profiles sp JOIN users u ON sp.user_id = u.id WHERE sp.id = ?`,
   ).get(id) as any;
 
   if (!row) return undefined;
@@ -392,7 +444,7 @@ export function getSitterById(id: string): Sitter | undefined {
 export function getSitterProfileByUserId(userId: string): Sitter | undefined {
   const row = query(
     `SELECT sp.id, sp.emoji, sp.rating, sp.review_count, sp.bio, sp.price_per_hour, sp.specialties, sp.is_verified, u.name 
-     FROM sitter_profiles sp JOIN users u ON sp.user_id = u.id WHERE sp.user_id = ?`
+     FROM sitter_profiles sp JOIN users u ON sp.user_id = u.id WHERE sp.user_id = ?`,
   ).get(userId) as any;
 
   if (!row) return undefined;

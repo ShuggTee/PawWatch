@@ -58,14 +58,14 @@ function serveStatic(pathname: string): Response | null {
 
 export default async function handler(
   req: IncomingMessage,
-  res: ServerResponse
+  res: ServerResponse,
 ): Promise<void> {
   // Ensure DB is initialized (lazy Turso connect on cold start)
   await waitForDb();
 
   const url = new URL(
     req.url || "/",
-    `https://${req.headers.host || "localhost"}`
+    `https://${req.headers.host || "localhost"}`,
   );
   const pathname = url.pathname;
 

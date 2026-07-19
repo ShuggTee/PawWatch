@@ -34,7 +34,7 @@ export function addBooking(booking: Booking): void {
 
 export function updateBookingStatus(
   id: string,
-  status: Booking["status"]
+  status: Booking["status"],
 ): void {
   const bookings = getBookings();
   const idx = bookings.findIndex((b) => b.id === id);
@@ -50,7 +50,7 @@ export function getCareLogs(bookingId: string): CareLog[] {
     .filter((l) => l.bookingId === bookingId)
     .sort(
       (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     );
 }
 
@@ -66,7 +66,7 @@ export function getLatestGps(bookingId: string): GpsPosition | undefined {
     .filter((p) => p.bookingId === bookingId)
     .sort(
       (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     );
   return positions[0];
 }
@@ -76,15 +76,12 @@ export function saveGpsPosition(position: GpsPosition): void {
   positions.push(position);
   // Keep only last 100 positions per booking
   const bookingPositions = positions.filter(
-    (p) => p.bookingId === position.bookingId
+    (p) => p.bookingId === position.bookingId,
   );
   if (bookingPositions.length > 100) {
-    const toRemove = bookingPositions.slice(
-      0,
-      bookingPositions.length - 100
-    );
+    const toRemove = bookingPositions.slice(0, bookingPositions.length - 100);
     const newPositions = positions.filter(
-      (p) => !toRemove.some((r) => r.timestamp === p.timestamp)
+      (p) => !toRemove.some((r) => r.timestamp === p.timestamp),
     );
     save(GPS_KEY, newPositions);
   } else {
