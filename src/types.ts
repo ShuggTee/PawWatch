@@ -59,6 +59,18 @@ export interface Dog {
   createdAt: string;
 }
 
+export interface CareVideo {
+  id: string;
+  bookingId: string;
+  careLogId: string | null;
+  sitterId: string;
+  filename: string;
+  videoData: string; // base64
+  thumbnail: string; // base64 data URL or empty
+  durationSeconds: number;
+  createdAt: string;
+}
+
 export interface EmailNotification {
   id: string;
   userId: string;
@@ -66,4 +78,73 @@ export interface EmailNotification {
   subject: string;
   body: string;
   sentAt: string;
+}
+
+export interface ActivityCareLogEntry {
+  id: string;
+  entryType: "care_log";
+  bookingId: string;
+  timestamp: string;
+  dogName: string;
+  dogBreed: string;
+  sitterName: string;
+  sitterEmoji: string;
+  feeding: boolean;
+  feedingNotes: string;
+  waterChanged: boolean;
+  treats: boolean;
+  treatNotes: string;
+  playtimeMinutes: number;
+  playtimeNotes: string;
+}
+
+export interface ActivityVideoEntry {
+  id: string;
+  entryType: "video";
+  bookingId: string;
+  timestamp: string;
+  dogName: string;
+  dogBreed: string;
+  sitterName: string;
+  sitterEmoji: string;
+  filename: string;
+  videoData: string;
+  thumbnail: string;
+  durationSeconds: number;
+}
+
+export type ActivityEntry = ActivityCareLogEntry | ActivityVideoEntry;
+
+export interface ActivityStats {
+  walksThisWeek: number;
+  feedingStreak: number;
+  lastVideo: { id: string; timestamp: string; thumbnail: string; dogName: string } | null;
+}
+
+export interface ActivityResponse {
+  entries: ActivityEntry[];
+  stats: ActivityStats;
+}
+
+export interface VerificationApplication {
+  id: string;
+  sitterId: string;
+  fullName: string;
+  phone: string;
+  address: string;
+  yearsExperience: number;
+  certifications: string;
+  firstAidCertified: boolean;
+  reference1Name: string;
+  reference1Phone: string;
+  reference1Relationship: string;
+  reference2Name: string;
+  reference2Phone: string;
+  reference2Relationship: string;
+  consent: boolean;
+  status: "pending" | "approved" | "rejected";
+  reviewedBy: string | null;
+  reviewNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

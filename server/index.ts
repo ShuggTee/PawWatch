@@ -17,6 +17,7 @@ import {
   careLogNotificationBody,
   buildCareSummary,
   getNotificationsForUser,
+  videoNotificationBody,
 } from "./email";
 
 const app = new Hono();
@@ -110,6 +111,88 @@ app.get("/sitters/:id", (c) => {
   const sitter = getSitterById(id);
   if (!sitter) return c.json({ error: "Sitter not found" }, 404);
   return c.json({ sitter });
+});
+
+// ── Sitter Availability ──
+app.get("/sitters/:id/availability", authMiddleware, (c) => {
+  const sitterId = c.req.param("id");
+  const month = c.req.query("month"); // YYYY-MM
+
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    return c.json({ error: "month query parameter required (YYYY-MM)" }, 400);
+  }
+
+  // Look up the sitter's user_id from their profile id
+  const sitterProfile = query(
+    "SELECT user_id FROM sitter_profiles WHERE id = ?"
+  ).get(sitterId) as any;
+  if (!sitterProfile) {
+    return c.json({ error: "Sitter not found" }, 404);
+  }
+
+  // Get all booked dates for this sitter in the given month
+  const rows = query(
+    `SELECT date FROM bookings
+     WHERE sitter_id = ?
+     AND date LIKE ?
+     AND status IN ('confirmed', 'in-progress')
+     GROUP BY date
+     ORDER BY date`
+  ).all(sitterProfile.user_id, `${month}%`);
+
+  const bookedDates = rows.map((r: any) => r.date);
+
+  return c.json({ bookedDates });
+});
+
+// ── Protected: Active bookings with GPS (for tracking tab) ──
+app.get("/track", authMiddleware, (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can access tracking" }, 403);
+  }
+
+  const rows = query(
+    `SELECT b.*, sp.id as sitter_profile_id, sp.emoji as sitter_emoji, u2.name as sitter_name
+     FROM bookings b
+     JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
+     JOIN users u2 ON u2.id = b.sitter_id
+     WHERE b.owner_id = ?
+     AND b.status IN ('confirmed', 'in-progress')
+     ORDER BY b.created_at DESC`
+  ).all(user.userId) as any[];
+
+  const bookings = rows.map((r: any) => {
+    const gpsRow = query(
+      "SELECT * FROM gps_positions WHERE booking_id = ? ORDER BY timestamp DESC LIMIT 1"
+    ).get(r.id) as any;
+
+    return {
+      id: r.id,
+      sitterId: r.sitter_profile_id,
+      sitterName: r.sitter_name,
+      sitterEmoji: r.sitter_emoji,
+      ownerId: r.owner_id,
+      ownerName: r.owner_name,
+      dogName: r.dog_name,
+      dogBreed: r.dog_breed,
+      address: r.address,
+      date: r.date,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      status: r.status,
+      createdAt: r.created_at,
+      gps: gpsRow
+        ? {
+            lat: gpsRow.lat,
+            lng: gpsRow.lng,
+            timestamp: gpsRow.timestamp,
+          }
+        : null,
+    };
+  });
+
+  return c.json({ bookings });
 });
 
 // ── Protected: Bookings ──
@@ -555,6 +638,170 @@ app.put("/sitters/me/verify", authMiddleware, (c) => {
   return c.json({ success: true, isVerified: true });
 });
 
+// ── Verification Applications ──
+
+// Submit a verification application (sitter only)
+app.post("/verify", authMiddleware, async (c) => {
+  const user = getUser(c);
+  if (user.role !== "sitter") {
+    return c.json({ error: "Only sitters can submit verification applications." }, 403);
+  }
+
+  // Check for existing pending/approved application
+  const existing = query(
+    "SELECT id, status FROM verification_applications WHERE sitter_id = ? AND status IN ('pending', 'approved') ORDER BY created_at DESC LIMIT 1"
+  ).get(user.userId) as any;
+  if (existing) {
+    if (existing.status === "approved") {
+      return c.json({ error: "You are already verified." }, 409);
+    }
+    return c.json({ error: "You already have a pending verification application." }, 409);
+  }
+
+  const body = await c.req.json();
+  const {
+    fullName, phone, address, yearsExperience, certifications,
+    firstAidCertified, reference1Name, reference1Phone, reference1Relationship,
+    reference2Name, reference2Phone, reference2Relationship, consent
+  } = body;
+
+  if (!fullName || !phone || !address) {
+    return c.json({ error: "Full name, phone, and address are required." }, 400);
+  }
+  if (!consent) {
+    return c.json({ error: "You must consent to the background check." }, 400);
+  }
+
+  const appId = generateId();
+  run(
+    `INSERT INTO verification_applications
+     (id, sitter_id, full_name, phone, address, years_experience, certifications,
+      first_aid_certified, reference1_name, reference1_phone, reference1_relationship,
+      reference2_name, reference2_phone, reference2_relationship, consent)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    appId, user.userId, fullName, phone, address, yearsExperience || 0,
+    certifications || "", firstAidCertified ? 1 : 0,
+    reference1Name || "", reference1Phone || "", reference1Relationship || "",
+    reference2Name || "", reference2Phone || "", reference2Relationship || "",
+    consent ? 1 : 0
+  );
+
+  // Also set pending_verification on sitter profile
+  run("UPDATE sitter_profiles SET pending_verification = 1 WHERE user_id = ?", user.userId);
+
+  const row = query("SELECT * FROM verification_applications WHERE id = ?").get(appId) as any;
+
+  return c.json({
+    application: {
+      id: row.id,
+      sitterId: row.sitter_id,
+      fullName: row.full_name,
+      phone: row.phone,
+      address: row.address,
+      yearsExperience: row.years_experience,
+      certifications: row.certifications,
+      firstAidCertified: !!row.first_aid_certified,
+      reference1Name: row.reference1_name,
+      reference1Phone: row.reference1_phone,
+      reference1Relationship: row.reference1_relationship,
+      reference2Name: row.reference2_name,
+      reference2Phone: row.reference2_phone,
+      reference2Relationship: row.reference2_relationship,
+      consent: !!row.consent,
+      status: row.status,
+      reviewedBy: row.reviewed_by,
+      reviewNotes: row.review_notes,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    },
+  });
+});
+
+// Get current verification status (sitter only)
+app.get("/verify", authMiddleware, (c) => {
+  const user = getUser(c);
+  if (user.role !== "sitter") {
+    return c.json({ error: "Only sitters can view verification status." }, 403);
+  }
+
+  // Check sitter_profile for verification status
+  const profile = query(
+    "SELECT is_verified, pending_verification FROM sitter_profiles WHERE user_id = ?"
+  ).get(user.userId) as any;
+
+  const isVerified = profile ? !!profile.is_verified : false;
+  const pendingVerification = profile ? !!profile.pending_verification : false;
+
+  // Get most recent application
+  const application = query(
+    "SELECT * FROM verification_applications WHERE sitter_id = ? ORDER BY created_at DESC LIMIT 1"
+  ).get(user.userId) as any;
+
+  return c.json({
+    isVerified,
+    pendingVerification,
+    application: application ? {
+      id: application.id,
+      sitterId: application.sitter_id,
+      fullName: application.full_name,
+      phone: application.phone,
+      address: application.address,
+      yearsExperience: application.years_experience,
+      certifications: application.certifications,
+      firstAidCertified: !!application.first_aid_certified,
+      reference1Name: application.reference1_name,
+      reference1Phone: application.reference1_phone,
+      reference1Relationship: application.reference1_relationship,
+      reference2Name: application.reference2_name,
+      reference2Phone: application.reference2_phone,
+      reference2Relationship: application.reference2_relationship,
+      consent: !!application.consent,
+      status: application.status,
+      reviewedBy: application.reviewed_by,
+      reviewNotes: application.review_notes,
+      createdAt: application.created_at,
+      updatedAt: application.updated_at,
+    } : null,
+  });
+});
+
+// Admin: approve or reject a verification application
+app.put("/verify/:id", authMiddleware, async (c) => {
+  const user = getUser(c);
+  const appId = c.req.param("id");
+  const body = await c.req.json();
+  const { status, reviewNotes } = body;
+
+  if (!status || !["approved", "rejected"].includes(status)) {
+    return c.json({ error: "Status must be 'approved' or 'rejected'." }, 400);
+  }
+
+  const application = query(
+    "SELECT * FROM verification_applications WHERE id = ?"
+  ).get(appId) as any;
+  if (!application) {
+    return c.json({ error: "Application not found." }, 404);
+  }
+  if (application.status !== "pending") {
+    return c.json({ error: "Application has already been reviewed." }, 409);
+  }
+
+  run(
+    "UPDATE verification_applications SET status = ?, reviewed_by = ?, review_notes = ?, updated_at = datetime('now') WHERE id = ?",
+    status, user.userId, reviewNotes || null, appId
+  );
+
+  if (status === "approved") {
+    // Mark the sitter as verified
+    run("UPDATE sitter_profiles SET is_verified = 1, pending_verification = 0 WHERE user_id = ?", application.sitter_id);
+  } else {
+    // Clear pending flag on rejection
+    run("UPDATE sitter_profiles SET pending_verification = 0 WHERE user_id = ?", application.sitter_id);
+  }
+
+  return c.json({ success: true, status });
+});
+
 // ── Notifications ──
 app.get("/notifications", authMiddleware, (c) => {
   const user = getUser(c);
@@ -683,6 +930,390 @@ app.delete("/dogs/:id", authMiddleware, (c) => {
 
   run("DELETE FROM dogs WHERE id = ? AND owner_id = ?", dogId, user.userId);
   return c.json({ success: true });
+});
+
+// ── Protected: Videos ──
+
+// Upload a video for a booking (sitter only)
+app.post("/bookings/:id/videos", authMiddleware, async (c) => {
+  const user = getUser(c);
+  if (user.role !== "sitter") {
+    return c.json({ error: "Only sitters can upload videos" }, 403);
+  }
+
+  const bookingId = c.req.param("id");
+
+  const booking = query("SELECT * FROM bookings WHERE id = ?").get(bookingId) as any;
+  if (!booking) return c.json({ error: "Booking not found" }, 404);
+  if (booking.sitter_id !== user.userId) {
+    return c.json({ error: "Unauthorized" }, 403);
+  }
+
+  const body = await c.req.json();
+  const { videoData, filename, thumbnail, durationSeconds, careLogId } = body;
+
+  if (!videoData || typeof videoData !== "string") {
+    return c.json({ error: "videoData (base64) is required" }, 400);
+  }
+
+  // Rough 50MB base64 check: base64 is ~4/3 the original size, so ~67MB base64
+  if (videoData.length > 70_000_000) {
+    return c.json({ error: "Video too large. Maximum 50MB." }, 400);
+  }
+
+  const videoId = generateId();
+  run(
+    `INSERT INTO care_videos (id, booking_id, care_log_id, sitter_id, filename, video_data, thumbnail, duration_seconds)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    videoId, bookingId, careLogId || null, user.userId,
+    filename || "video.mp4", videoData, thumbnail || "",
+    durationSeconds || 0
+  );
+
+  // Send notification to the owner
+  const ownerRow = query("SELECT id, email, name FROM users WHERE id = ?").get(booking.owner_id) as any;
+  if (ownerRow) {
+    sendEmail(
+      ownerRow.email || "",
+      `📹 ${user.name} sent you a video of ${booking.dog_name}! — PawWatch`,
+      videoNotificationBody(ownerRow.name, user.name, booking.dog_name),
+      booking.owner_id,
+      "video_upload"
+    ).catch((err) => console.error("Video notification email failed:", err));
+  }
+
+  const row = query("SELECT * FROM care_videos WHERE id = ?").get(videoId) as any;
+
+  return c.json({
+    video: {
+      id: row.id,
+      bookingId: row.booking_id,
+      careLogId: row.care_log_id,
+      sitterId: row.sitter_id,
+      filename: row.filename,
+      videoData: row.video_data,
+      thumbnail: row.thumbnail,
+      durationSeconds: row.duration_seconds,
+      createdAt: row.created_at,
+    },
+  });
+});
+
+// List videos for a booking
+app.get("/bookings/:id/videos", authMiddleware, (c) => {
+  const user = getUser(c);
+  const bookingId = c.req.param("id");
+
+  const booking = query("SELECT * FROM bookings WHERE id = ?").get(bookingId) as any;
+  if (!booking) return c.json({ error: "Booking not found" }, 404);
+  if (booking.owner_id !== user.userId && booking.sitter_id !== user.userId) {
+    return c.json({ error: "Unauthorized" }, 403);
+  }
+
+  const rows = query(
+    "SELECT * FROM care_videos WHERE booking_id = ? ORDER BY created_at DESC"
+  ).all(bookingId);
+
+  const videos = rows.map((r: any) => ({
+    id: r.id,
+    bookingId: r.booking_id,
+    careLogId: r.care_log_id,
+    sitterId: r.sitter_id,
+    filename: r.filename,
+    videoData: r.video_data,
+    thumbnail: r.thumbnail,
+    durationSeconds: r.duration_seconds,
+    createdAt: r.created_at,
+  }));
+
+  return c.json({ videos });
+});
+
+// ── Protected: Activity feed (unified care logs + videos) ──
+app.get("/activity", authMiddleware, (c) => {
+  const user = getUser(c);
+  if (user.role !== "owner") {
+    return c.json({ error: "Only owners can access activity feed" }, 403);
+  }
+
+  const dogId = c.req.query("dog_id") || "";
+  const dateFrom = c.req.query("from") || "";
+  const dateTo = c.req.query("to") || "";
+  const typeFilter = c.req.query("type") || ""; // feeding, water, treats, playtime, videos
+
+  // Get the dog name if dog_id is provided
+  let dogNameFilter = "";
+  if (dogId) {
+    const dog = query("SELECT name FROM dogs WHERE id = ? AND owner_id = ?").get(dogId, user.userId) as any;
+    if (dog) {
+      dogNameFilter = dog.name;
+    } else {
+      return c.json({ entries: [], stats: { walksThisWeek: 0, feedingStreak: 0, lastVideo: null } });
+    }
+  }
+
+  // Build WHERE clauses for care_logs
+  const careLogConditions: string[] = ["b.owner_id = ?"];
+  const careLogParams: unknown[] = [user.userId];
+
+  if (dogNameFilter) {
+    careLogConditions.push("b.dog_name = ?");
+    careLogParams.push(dogNameFilter);
+  }
+  if (dateFrom) {
+    careLogConditions.push("cl.timestamp >= ?");
+    careLogParams.push(dateFrom);
+  }
+  if (dateTo) {
+    careLogConditions.push("cl.timestamp <= ?");
+    careLogParams.push(dateTo + " 23:59:59");
+  }
+
+  // Build WHERE clauses for videos
+  const videoConditions: string[] = ["b.owner_id = ?"];
+  const videoParams: unknown[] = [user.userId];
+
+  if (dogNameFilter) {
+    videoConditions.push("b.dog_name = ?");
+    videoParams.push(dogNameFilter);
+  }
+  if (dateFrom) {
+    videoConditions.push("cv.created_at >= ?");
+    videoParams.push(dateFrom);
+  }
+  if (dateTo) {
+    videoConditions.push("cv.created_at <= ?");
+    videoParams.push(dateTo + " 23:59:59");
+  }
+
+  const entries: any[] = [];
+
+  // Fetch care logs
+  if (!typeFilter || ["feeding", "water", "treats", "playtime"].includes(typeFilter)) {
+    const careLogWhere = careLogConditions.join(" AND ");
+    const careLogRows = query(
+      `SELECT 
+        cl.id, cl.booking_id, cl.timestamp,
+        cl.feeding, cl.feeding_notes, cl.water_changed,
+        cl.treats, cl.treat_notes, cl.playtime_minutes, cl.playtime_notes,
+        b.dog_name, b.dog_breed, b.owner_id,
+        u2.name as sitter_name, sp.emoji as sitter_emoji
+       FROM care_logs cl
+       JOIN bookings b ON cl.booking_id = b.id
+       JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
+       JOIN users u2 ON u2.id = b.sitter_id
+       WHERE ${careLogWhere}
+       ORDER BY cl.timestamp DESC
+       LIMIT 200`
+    ).all(...careLogParams) as any[];
+
+    for (const r of careLogRows) {
+      // Type filter (skip if this log doesn't match the requested type)
+      if (typeFilter) {
+        if (typeFilter === "feeding" && !r.feeding) continue;
+        if (typeFilter === "water" && !r.water_changed) continue;
+        if (typeFilter === "treats" && !r.treats) continue;
+        if (typeFilter === "playtime" && !r.playtime_minutes) continue;
+      }
+      entries.push({
+        id: r.id,
+        entryType: "care_log",
+        bookingId: r.booking_id,
+        timestamp: r.timestamp,
+        dogName: r.dog_name,
+        dogBreed: r.dog_breed,
+        sitterName: r.sitter_name,
+        sitterEmoji: r.sitter_emoji,
+        feeding: !!r.feeding,
+        feedingNotes: r.feeding_notes || "",
+        waterChanged: !!r.water_changed,
+        treats: !!r.treats,
+        treatNotes: r.treat_notes || "",
+        playtimeMinutes: r.playtime_minutes || 0,
+        playtimeNotes: r.playtime_notes || "",
+      });
+    }
+  }
+
+  // Fetch videos
+  if (!typeFilter || typeFilter === "videos") {
+    const videoWhere = videoConditions.join(" AND ");
+    const videoRows = query(
+      `SELECT 
+        cv.id, cv.booking_id, cv.created_at as timestamp,
+        cv.filename, cv.video_data, cv.thumbnail, cv.duration_seconds,
+        b.dog_name, b.dog_breed,
+        u2.name as sitter_name, sp.emoji as sitter_emoji
+       FROM care_videos cv
+       JOIN bookings b ON cv.booking_id = b.id
+       JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
+       JOIN users u2 ON u2.id = b.sitter_id
+       WHERE ${videoWhere}
+       ORDER BY cv.created_at DESC
+       LIMIT 100`
+    ).all(...videoParams) as any[];
+
+    for (const r of videoRows) {
+      entries.push({
+        id: r.id,
+        entryType: "video",
+        bookingId: r.booking_id,
+        timestamp: r.timestamp,
+        dogName: r.dog_name,
+        dogBreed: r.dog_breed,
+        sitterName: r.sitter_name,
+        sitterEmoji: r.sitter_emoji,
+        filename: r.filename,
+        videoData: r.video_data,
+        thumbnail: r.thumbnail,
+        durationSeconds: r.duration_seconds || 0,
+      });
+    }
+  }
+
+  // Sort merged entries by timestamp descending
+  entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  // ── Summary stats ──
+  // Total playtime this week
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString();
+
+  const playtimeRow = query(
+    `SELECT COALESCE(SUM(cl.playtime_minutes), 0) as total
+     FROM care_logs cl
+     JOIN bookings b ON cl.booking_id = b.id
+     WHERE b.owner_id = ? AND cl.timestamp >= ?`
+  ).get(user.userId, weekAgoStr) as any;
+  const walksThisWeek = playtimeRow?.total || 0;
+
+  // Feeding streak (consecutive days with at least one feeding)
+  const feedingDays = query(
+    `SELECT DISTINCT date(cl.timestamp) as day
+     FROM care_logs cl
+     JOIN bookings b ON cl.booking_id = b.id
+     WHERE b.owner_id = ? AND cl.feeding = 1
+     ORDER BY day DESC
+     LIMIT 60`
+  ).all(user.userId) as any[];
+
+  let feedingStreak = 0;
+  const todayStr = new Date().toISOString().split("T")[0];
+  const feedingDaySet = new Set(feedingDays.map((r: any) => r.day));
+
+  if (feedingDaySet.has(todayStr)) {
+    feedingStreak = 1;
+    const d = new Date();
+    while (true) {
+      d.setDate(d.getDate() - 1);
+      const check = d.toISOString().split("T")[0];
+      if (feedingDaySet.has(check)) {
+        feedingStreak++;
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Last video received
+  const lastVideoRow = query(
+    `SELECT cv.id, cv.created_at, cv.thumbnail, b.dog_name
+     FROM care_videos cv
+     JOIN bookings b ON cv.booking_id = b.id
+     WHERE b.owner_id = ?
+     ORDER BY cv.created_at DESC LIMIT 1`
+  ).get(user.userId) as any;
+
+  const stats = {
+    walksThisWeek,
+    feedingStreak,
+    lastVideo: lastVideoRow ? {
+      id: lastVideoRow.id,
+      timestamp: lastVideoRow.created_at,
+      thumbnail: lastVideoRow.thumbnail,
+      dogName: lastVideoRow.dog_name,
+    } : null,
+  };
+
+  return c.json({ entries, stats });
+});
+
+// ── Public: Community page data ──
+app.get("/community", (c) => {
+  // Total sitters
+  const sitterCountRow = query("SELECT COUNT(*) as c FROM sitter_profiles").get() as any;
+  const totalSitters = sitterCountRow?.c || 0;
+
+  // Total dogs registered
+  const dogCountRow = query("SELECT COUNT(*) as c FROM dogs").get() as any;
+  const totalDogs = dogCountRow?.c || 0;
+
+  // Total completed bookings
+  const bookingCountRow = query("SELECT COUNT(*) as c FROM bookings WHERE status = 'completed'").get() as any;
+  const totalBookings = bookingCountRow?.c || 0;
+
+  // Total playtime minutes
+  const playtimeRow = query("SELECT COALESCE(SUM(playtime_minutes), 0) as total FROM care_logs").get() as any;
+  const totalPlaytimeMinutes = playtimeRow?.total || 0;
+
+  // Recent completed bookings (success stories, last 6)
+  const storyRows = query(
+    `SELECT b.*, sp.emoji as sitter_emoji, u2.name as sitter_name
+     FROM bookings b
+     JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
+     JOIN users u2 ON u2.id = b.sitter_id
+     WHERE b.status = 'completed'
+     ORDER BY b.created_at DESC
+     LIMIT 6`
+  ).all() as any[];
+
+  const successStories = storyRows.map((r: any) => ({
+    sitterName: r.sitter_name,
+    sitterEmoji: r.sitter_emoji,
+    ownerName: r.owner_name,
+    dogName: r.dog_name,
+    dogBreed: r.dog_breed,
+    date: r.date,
+  }));
+
+  // Verified sitters spotlight (last 5 verified)
+  const verifiedRows = query(
+    `SELECT sp.id, sp.emoji, sp.rating, sp.review_count, sp.bio, sp.specialties, u.name
+     FROM sitter_profiles sp
+     JOIN users u ON sp.user_id = u.id
+     WHERE sp.is_verified = 1
+     ORDER BY sp.rating DESC
+     LIMIT 5`
+  ).all() as any[];
+
+  const verifiedSitters = verifiedRows.map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    emoji: r.emoji,
+    rating: r.rating,
+    reviewCount: r.review_count,
+    bio: r.bio,
+    specialties: JSON.parse(r.specialties as string),
+  }));
+
+  // Active owners count (owners who have made at least one booking)
+  const ownerCountRow = query(
+    "SELECT COUNT(DISTINCT owner_id) as c FROM bookings"
+  ).get() as any;
+  const activeOwners = ownerCountRow?.c || 0;
+
+  return c.json({
+    stats: {
+      totalSitters,
+      totalDogs,
+      totalBookings,
+      totalPlaytimeMinutes,
+      activeOwners,
+    },
+    successStories,
+    verifiedSitters,
+  });
 });
 
 export default app;

@@ -199,6 +199,45 @@ function initSchema() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+
+  _exec!(`
+    CREATE TABLE IF NOT EXISTS care_videos (
+      id TEXT PRIMARY KEY,
+      booking_id TEXT NOT NULL REFERENCES bookings(id),
+      care_log_id TEXT,
+      sitter_id TEXT NOT NULL REFERENCES users(id),
+      filename TEXT NOT NULL DEFAULT 'video.mp4',
+      video_data TEXT NOT NULL,
+      thumbnail TEXT NOT NULL DEFAULT '',
+      duration_seconds INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  _exec!(`
+    CREATE TABLE IF NOT EXISTS verification_applications (
+      id TEXT PRIMARY KEY,
+      sitter_id TEXT NOT NULL REFERENCES users(id),
+      full_name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      address TEXT NOT NULL,
+      years_experience INTEGER NOT NULL DEFAULT 0,
+      certifications TEXT NOT NULL DEFAULT '',
+      first_aid_certified INTEGER NOT NULL DEFAULT 0,
+      reference1_name TEXT NOT NULL DEFAULT '',
+      reference1_phone TEXT NOT NULL DEFAULT '',
+      reference1_relationship TEXT NOT NULL DEFAULT '',
+      reference2_name TEXT NOT NULL DEFAULT '',
+      reference2_phone TEXT NOT NULL DEFAULT '',
+      reference2_relationship TEXT NOT NULL DEFAULT '',
+      consent INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+      reviewed_by TEXT,
+      review_notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
 }
 
 // ── Seed data ──

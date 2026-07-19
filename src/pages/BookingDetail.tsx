@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   getBooking,
@@ -7,10 +7,13 @@ import {
   getLatestGps,
   saveGpsPosition,
   updateBookingStatus,
+  getVideos,
+  uploadVideo,
   type BookingWithSitter,
 } from "../data/api";
 import { useAuth } from "../components/AuthContext";
-import type { CareLog, GpsPosition } from "../types";
+import type { CareLog, GpsPosition, CareVideo } from "../types";
+import LeafletMap from "../components/LeafletMap";
 
 const ARRIVAL_RADIUS_METERS = 100;
 const OWNER_HOME = { lat: 37.7749, lng: -122.4194 }; // fallback default
@@ -23,6 +26,7 @@ export default function BookingDetail() {
   const [booking, setBooking] = useState<BookingWithSitter | null>(null);
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<CareLog[]>([]);
+  const [videos, setVideos] = useState<CareVideo[]>([]);
 
   // GPS state for sitter
   const [tracking, setTracking] = useState(false);
@@ -47,6 +51,11 @@ export default function BookingDetail() {
     playtimeNotes: "",
   });
 
+  // Video state
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [videoPlayer, setVideoPlayer] = useState<CareVideo | null>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
   // Haversine distance in meters
   const calcDistance = useCallback(
     (lat1: number, lng1: number, lat2: number, lng2: number) => {
@@ -65,7 +74,7 @@ export default function BookingDetail() {
     [],
   );
 
-  // Load booking and logs
+  // Load booking, logs, and videos
   useEffect(() => {
     if (!bookingId || !user) return;
     setLoading(true);
@@ -73,10 +82,12 @@ export default function BookingDetail() {
       getBooking(bookingId),
       getCareLogs(bookingId),
       getLatestGps(bookingId),
+      getVideos(bookingId),
     ])
-      .then(([b, l, pos]) => {
+      .then(([b, l, pos, vids]) => {
         setBooking(b || null);
         setLogs(l);
+        setVideos(vids);
         if (pos) {
           setCurrentPos({ lat: pos.lat, lng: pos.lng });
           const dist = calcDistance(
@@ -165,6 +176,72 @@ export default function BookingDetail() {
         playtimeNotes: "",
       });
     } catch {}
+  };
+
+  // Handle video file selection
+  const handleVideoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !bookingId) return;
+
+    // Check size (50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      alert("Video too large. Maximum 50MB.");
+      return;
+    }
+
+    // For non-video files (image mock), just reject
+    if (!file.type.startsWith("video/")) {
+      alert("Please select a video file.");
+      return;
+    }
+
+    setUploadingVideo(true);
+    try {
+      // Read as base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Strip data URL prefix to get raw base64
+          const base64 = result.split(",")[1] || result;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(file);
+      const base64Data = await base64Promise;
+
+      // Generate a thumbnail from the video
+      let thumbnail = "";
+      try {
+        thumbnail = await generateVideoThumbnail(file);
+      } catch {
+        // Thumbnail generation failed, continue without
+      }
+
+      // Get duration
+      let durationSeconds = 0;
+      try {
+        durationSeconds = await getVideoDuration(file);
+      } catch {
+        // Duration extraction failed, continue without
+      }
+
+      const video = await uploadVideo(bookingId, {
+        videoData: base64Data,
+        filename: file.name,
+        thumbnail,
+        durationSeconds,
+      });
+
+      setVideos((prev) => [video, ...prev]);
+    } catch (err: any) {
+      alert(err?.message || "Failed to upload video. Please try again.");
+    } finally {
+      setUploadingVideo(false);
+      // Reset input
+      if (videoInputRef.current) videoInputRef.current.value = "";
+    }
   };
 
   if (!user) {
@@ -288,19 +365,52 @@ export default function BookingDetail() {
         ) : (
           <>
             {/* Map / position display */}
-            <div className="mb-3 overflow-hidden rounded-xl bg-amber-50/50">
+            <div className="mb-3">
               {currentPos ? (
-                <div className="p-4">
-                  <div className="mb-2 flex items-center gap-2 text-sm text-gray-600">
-                    <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
-                    Live position
-                  </div>
-                  <div className="mb-1 font-mono text-sm text-gray-700">
-                    Lat: {currentPos.lat.toFixed(6)}
-                  </div>
-                  <div className="mb-2 font-mono text-sm text-gray-700">
-                    Lng: {currentPos.lng.toFixed(6)}
-                  </div>
+                <>
+                  <LeafletMap
+                    sitters={[
+                      {
+                        lat: currentPos.lat,
+                        lng: currentPos.lng,
+                        name: isSitter ? "You" : booking.sitterName,
+                        emoji: isSitter ? "📍" : booking.sitterEmoji,
+                        distance,
+                        arrived,
+                      },
+                    ]}
+                    homePosition={OWNER_HOME}
+                    tracking={tracking}
+                    showHome={!isSitter || tracking}
+                    centerOnSitter={tracking}
+                    fallbackContent={
+                      <div className="rounded-xl bg-amber-50/50 p-4">
+                        <div className="mb-2 flex items-center gap-2 text-sm text-gray-600">
+                          <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
+                          Live position
+                        </div>
+                        <div className="mb-1 font-mono text-sm text-gray-700">
+                          Lat: {currentPos.lat.toFixed(6)}
+                        </div>
+                        <div className="mb-2 font-mono text-sm text-gray-700">
+                          Lng: {currentPos.lng.toFixed(6)}
+                        </div>
+                        {distance !== null && (
+                          <div
+                            className={`mt-2 rounded-lg px-3 py-2 text-sm font-semibold ${
+                              arrived
+                                ? "bg-green-100 text-green-700"
+                                : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {arrived
+                              ? "✅ Sitter has arrived at your home!"
+                              : `📍 ${distance}m from your home`}
+                          </div>
+                        )}
+                      </div>
+                    }
+                  />
                   {distance !== null && (
                     <div
                       className={`mt-2 rounded-lg px-3 py-2 text-sm font-semibold ${
@@ -314,15 +424,24 @@ export default function BookingDetail() {
                         : `📍 ${distance}m from your home`}
                     </div>
                   )}
-                </div>
+                </>
               ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-gray-400">
-                  <span className="mb-2 text-3xl">📍</span>
-                  <p className="text-sm">
-                    {isSitter
-                      ? "Start sharing to show your location"
-                      : "Waiting for sitter to share location"}
-                  </p>
+                <div className="flex flex-col items-center justify-center rounded-xl bg-amber-50/50 py-8 text-gray-400">
+                  <LeafletMap
+                    sitters={[]}
+                    homePosition={OWNER_HOME}
+                    showHome={true}
+                    fallbackContent={
+                      <>
+                        <span className="mb-2 text-3xl">📍</span>
+                        <p className="text-sm">
+                          {isSitter
+                            ? "Start sharing to show your location"
+                            : "Waiting for sitter to share location"}
+                        </p>
+                      </>
+                    }
+                  />
                 </div>
               )}
             </div>
@@ -486,6 +605,33 @@ export default function BookingDetail() {
               />
             </div>
 
+            {/* Video upload button in care log form */}
+            <div className="mb-3 rounded-lg border border-dashed border-amber-300 bg-white p-3">
+              <p className="mb-2 text-sm font-semibold text-gray-700">
+                📹 Record a video update
+              </p>
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                capture="environment"
+                onChange={handleVideoSelect}
+                className="hidden"
+                id="video-upload-input"
+              />
+              <button
+                type="button"
+                onClick={() => videoInputRef.current?.click()}
+                disabled={uploadingVideo}
+                className="btn-sm bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-50"
+              >
+                {uploadingVideo ? "Uploading..." : "📹 Record / Choose Video"}
+              </button>
+              <p className="mt-1 text-xs text-gray-400">
+                Max 30 sec, 50MB. Opens camera on mobile.
+              </p>
+            </div>
+
             <button type="submit" className="btn-primary w-full">
               Save Care Log Entry
             </button>
@@ -506,8 +652,14 @@ export default function BookingDetail() {
               key={log.id}
               className="rounded-xl border border-amber-100 bg-amber-50/50 p-3"
             >
-              <div className="mb-2 text-xs text-gray-400">
-                {new Date(log.timestamp).toLocaleString()}
+              <div className="mb-2 flex items-center justify-between text-xs text-gray-400">
+                <span>{new Date(log.timestamp).toLocaleString()}</span>
+                {/* Video count badge for this log */}
+                {videos.filter((v) => v.careLogId === log.id).length > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">
+                    📹 {videos.filter((v) => v.careLogId === log.id).length}
+                  </span>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-1.5 text-sm">
                 <div className="flex items-center gap-1.5">
@@ -564,6 +716,179 @@ export default function BookingDetail() {
           </div>
         )}
       </div>
+
+      {/* Video Gallery Section */}
+      {videos.length > 0 && (
+        <div className="card mt-4">
+          <h3 className="section-title flex items-center gap-2 mb-3">
+            <span>📹</span> Videos
+            <span className="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">
+              {videos.length}
+            </span>
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {videos.map((video) => (
+              <div
+                key={video.id}
+                onClick={() => setVideoPlayer(video)}
+                className="cursor-pointer overflow-hidden rounded-xl border border-amber-100 bg-gray-100 transition hover:shadow-md"
+              >
+                {/* Thumbnail */}
+                <div className="relative aspect-video bg-gray-200">
+                  {video.thumbnail ? (
+                    <img
+                      src={video.thumbnail}
+                      alt="Video thumbnail"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gray-300 text-3xl text-gray-500">
+                      📹
+                    </div>
+                  )}
+                  {/* Play button overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white text-lg">
+                      ▶
+                    </div>
+                  </div>
+                  {/* Duration badge */}
+                  {video.durationSeconds > 0 && (
+                    <div className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">
+                      {formatDuration(video.durationSeconds)}
+                    </div>
+                  )}
+                </div>
+                {/* Info */}
+                <div className="p-2">
+                  <p className="text-xs text-gray-500 truncate">
+                    {new Date(video.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Full-screen Video Player Modal */}
+      {videoPlayer && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setVideoPlayer(null)}
+        >
+          <div
+            className="relative w-full max-w-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setVideoPlayer(null)}
+              className="absolute -top-10 right-0 text-2xl text-white hover:text-gray-300"
+            >
+              ✕
+            </button>
+
+            {/* Video player */}
+            <video
+              src={`data:video/mp4;base64,${videoPlayer.videoData}`}
+              controls
+              autoPlay
+              className="w-full rounded-xl"
+              style={{ maxHeight: "80vh" }}
+            >
+              Your browser does not support video playback.
+            </video>
+
+            {/* Video info */}
+            <div className="mt-2 text-center text-sm text-gray-300">
+              {new Date(videoPlayer.createdAt).toLocaleString()}
+              {videoPlayer.durationSeconds > 0 && (
+                <> · {formatDuration(videoPlayer.durationSeconds)}</>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+// ── Helpers ──
+
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Generate a thumbnail (first frame) from a video file.
+ * Uses a hidden <video> element + canvas to capture the first frame.
+ */
+function generateVideoThumbnail(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+
+    const url = URL.createObjectURL(file);
+    video.src = url;
+
+    video.onloadeddata = () => {
+      // Seek to 1 second or 10% of duration for a meaningful frame
+      video.currentTime = Math.min(1, video.duration * 0.1);
+    };
+
+    video.onseeked = () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const thumbnail = canvas.toDataURL("image/jpeg", 0.7);
+      URL.revokeObjectURL(url);
+      resolve(thumbnail);
+    };
+
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to generate thumbnail"));
+    };
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Thumbnail generation timed out"));
+    }, 10000);
+  });
+}
+
+/**
+ * Get the duration of a video file in seconds.
+ */
+function getVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    const url = URL.createObjectURL(file);
+    video.src = url;
+
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(Math.round(video.duration));
+    };
+
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to get video duration"));
+    };
+
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Duration extraction timed out"));
+    }, 5000);
+  });
 }

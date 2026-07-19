@@ -40,7 +40,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const ownerTabs = [
     { path: "/", label: "Home", icon: "🏠" },
+    { path: "/track", label: "Track", icon: "📍" },
     { path: "/sitters", label: "Sitters", icon: "🔍" },
+    { path: "/community", label: "Community", icon: "👥" },
+    { path: "/activity", label: "Activity", icon: "📊" },
     { path: "/dogs", label: "My Dogs", icon: "🐕" },
     { path: "/bookings", label: "Bookings", icon: "📋" },
   ];
@@ -54,6 +57,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const sitterTabs = [
     { path: "/", label: "Home", icon: "🏠" },
     { path: "/sitter-dashboard", label: "My Jobs", icon: "📋" },
+    { path: "/community", label: "Community", icon: "👥" },
+    { path: "/verify", label: "Verify", icon: "✅" },
   ];
 
   const tabs = !user
