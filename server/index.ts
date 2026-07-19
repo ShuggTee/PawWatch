@@ -9,6 +9,15 @@ import {
   getUserById,
 } from "./auth";
 import type { UserPayload } from "./auth";
+import {
+  sendEmail,
+  welcomeEmailBody,
+  bookingConfirmationBody,
+  sitterNotifyBody,
+  careLogNotificationBody,
+  buildCareSummary,
+  getNotificationsForUser,
+} from "./email";
 
 const app = new Hono();
 app.use("/*", cors());
@@ -51,6 +60,15 @@ app.post("/auth/signup", async (c) => {
   if ("error" in result) {
     return c.json({ error: result.error }, 409);
   }
+
+  // Send welcome email (fire and forget)
+  sendEmail(
+    email,
+    "🐾 Welcome to PawWatch!",
+    welcomeEmailBody(name),
+    result.user.id,
+    "welcome"
+  ).catch((err) => console.error("Welcome email failed:", err));
 
   return c.json({ user: result.user, token: result.token });
 });
@@ -199,31 +217,56 @@ app.post("/bookings", authMiddleware, async (c) => {
   );
 
   const row = query(
-    `SELECT b.*, sp.id as sitter_profile_id, sp.emoji as sitter_emoji, u2.name as sitter_name
+    `SELECT b.*, sp.id as sitter_profile_id, sp.emoji as sitter_emoji, u2.name as sitter_name, u2.email as sitter_email
      FROM bookings b
      JOIN sitter_profiles sp ON sp.user_id = b.sitter_id
      JOIN users u2 ON u2.id = b.sitter_id
      WHERE b.id = ?`
   ).get(bookingId) as any;
 
-  return c.json({
-    booking: {
-      id: row.id,
-      sitterId: row.sitter_profile_id,
-      sitterName: row.sitter_name,
-      sitterEmoji: row.sitter_emoji,
-      ownerId: row.owner_id,
-      ownerName: row.owner_name,
-      dogName: row.dog_name,
-      dogBreed: row.dog_breed,
-      address: row.address,
-      date: row.date,
-      startTime: row.start_time,
-      endTime: row.end_time,
-      status: row.status,
-      createdAt: row.created_at,
-    },
-  });
+  const booking = {
+    id: row.id,
+    sitterId: row.sitter_profile_id,
+    sitterName: row.sitter_name,
+    sitterEmoji: row.sitter_emoji,
+    ownerId: row.owner_id,
+    ownerName: row.owner_name,
+    dogName: row.dog_name,
+    dogBreed: row.dog_breed,
+    address: row.address,
+    date: row.date,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+
+  // Send confirmation email to owner (fire and forget)
+  sendEmail(
+    user.email,
+    "✅ Booking Confirmed — PawWatch",
+    bookingConfirmationBody(
+      user.name, row.sitter_name, dogName, date, startTime, endTime, address
+    ),
+    user.userId,
+    "booking_confirmation_owner"
+  ).catch((err) => console.error("Owner booking email failed:", err));
+
+  // Notify sitter if they have a real email (not mock)
+  const sitterEmail = row.sitter_email as string;
+  if (sitterEmail && !sitterEmail.includes("pawwatch.internal")) {
+    sendEmail(
+      sitterEmail,
+      "📋 New Booking Request — PawWatch",
+      sitterNotifyBody(
+        row.sitter_name, user.name, dogName, date, startTime, endTime
+      ),
+      row.sitter_id,
+      "booking_confirmation_sitter"
+    ).catch((err) => console.error("Sitter booking email failed:", err));
+  }
+
+  return c.json({ booking });
 });
 
 app.patch("/bookings/:id/status", authMiddleware, async (c) => {
@@ -299,6 +342,19 @@ app.post("/bookings/:id/care-logs", authMiddleware, async (c) => {
     body.waterChanged ? 1 : 0, body.treats ? 1 : 0, body.treatNotes || "",
     body.playtimeMinutes || 0, body.playtimeNotes || ""
   );
+
+  // Send notification to the owner (fire and forget)
+  const ownerRow = query("SELECT id, email, name FROM users WHERE id = ?").get(booking.owner_id) as any;
+  if (ownerRow) {
+    const summary = buildCareSummary(body);
+    sendEmail(
+      ownerRow.email || "",
+      `🐕 Care Update: ${booking.dog_name} — PawWatch`,
+      careLogNotificationBody(ownerRow.name, user.name, booking.dog_name, summary),
+      booking.owner_id,
+      "care_log"
+    ).catch((err) => console.error("Care log email failed:", err));
+  }
 
   return c.json({
     log: {
@@ -438,6 +494,13 @@ app.put("/sitters/me/verify", authMiddleware, (c) => {
 
   run("UPDATE sitter_profiles SET is_verified = 1, pending_verification = 0 WHERE user_id = ?", user.userId);
   return c.json({ success: true, isVerified: true });
+});
+
+// ── Notifications ──
+app.get("/notifications", authMiddleware, (c) => {
+  const user = getUser(c);
+  const notifications = getNotificationsForUser(user.userId);
+  return c.json({ notifications });
 });
 
 export default app;

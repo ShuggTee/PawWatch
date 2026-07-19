@@ -45,3 +45,12 @@ export interface GpsPosition {
 }
 
 export type AppRole = "owner" | "sitter";
+
+export interface EmailNotification {
+  id: string;
+  userId: string;
+  type: string;
+  subject: string;
+  body: string;
+  sentAt: string;
+}

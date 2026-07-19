@@ -1,4 +1,4 @@
-import type { Booking, CareLog, GpsPosition, Sitter } from "../types";
+import type { Booking, CareLog, GpsPosition, Sitter, EmailNotification } from "../types";
 
 const API_BASE = "/api";
 
@@ -252,4 +252,12 @@ export async function verifySitter(): Promise<{
     }
   );
   return data;
+}
+
+// ── Notifications ──
+export async function getNotifications(): Promise<EmailNotification[]> {
+  const data = await apiFetch<{ notifications: EmailNotification[] }>(
+    "/notifications"
+  );
+  return data.notifications;
 }

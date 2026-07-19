@@ -1,12 +1,16 @@
 // PawWatch unified server: Hono API + static frontend on port 3000
 import { Hono } from "hono";
 import apiApp from "./server/index";
+import { waitForDb } from "./server/db";
 import { readFileSync, existsSync } from "node:fs";
 import { join, extname } from "node:path";
 
 const PORT = 3000;
 const HOST = "0.0.0.0";
 const DIST_DIR = join(import.meta.dir, "dist");
+
+// Ensure database is initialized before handling requests
+await waitForDb();
 
 const app = new Hono();
 
